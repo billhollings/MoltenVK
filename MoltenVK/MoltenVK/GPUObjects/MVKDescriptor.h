@@ -165,13 +165,12 @@ protected:
 	friend class MVKInlineUniformBlockDescriptor;
 
 	inline uint32_t getDescriptorIndex(uint32_t elementIndex = 0) { return _descriptorIndex + elementIndex; }
-	inline uint32_t getMTLArgumentBufferIndex(uint32_t mvkShaderStage, uint32_t elementIndex = 0) {
-		return _argumentBufferIndex[mvkShaderStage] + elementIndex;
-	}
+	inline uint32_t getMTLArgumentBufferIndex(uint32_t elementIndex = 0) { return _argumentBufferIndex + elementIndex; }
 	void initMetalResourceIndexOffsets(MVKShaderStageResourceBinding* pBindingIndexes,
 									   MVKShaderStageResourceBinding* pDescSetCounts,
-									   const VkDescriptorSetLayoutBinding* pBinding);
-	void addMTLArgumentDescriptors(uint32_t stage, NSMutableArray<MTLArgumentDescriptor*>* args, uint32_t& argIdx);
+									   const VkDescriptorSetLayoutBinding* pBinding,
+									   uint32_t stage);
+	void addMTLArgumentDescriptors(NSMutableArray<MTLArgumentDescriptor*>* args, uint32_t& argIdx);
 	void addMTLArgumentDescriptor(NSMutableArray<MTLArgumentDescriptor*>* args,
 								  MTLDataType dataType,
 								  MTLArgumentAccess access,
@@ -187,7 +186,7 @@ protected:
 	MVKSmallVector<MVKSampler*> _immutableSamplers;
 	uint32_t _descriptorIndex;
 	MVKShaderResourceBinding _mtlResourceIndexOffsets;
-	uint32_t _argumentBufferIndex[kMVKShaderStageCount];
+	uint32_t _argumentBufferIndex;
 	bool _applyToStage[kMVKShaderStageCount];
 };
 

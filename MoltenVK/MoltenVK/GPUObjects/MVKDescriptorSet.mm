@@ -47,20 +47,14 @@ void MVKDescriptorSetLayout::bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
 	bindMetalArgumentBuffer(nullptr);
 
 	// If we're using Metal argument buffer, bind it to the command encoder in each stage that will use it.
-	if (cmdEncoder) {
-		id<MTLBuffer> mtlArgBuff = descSet->getMetalArgumentBuffer();
-		NSUInteger descSetOffset = descSet->getMetalArgumentBufferOffset();
-		if (mtlArgBuff) {
-			MVKMTLBufferBinding bb;
-			bb.mtlBuffer = mtlArgBuff;
-			bb.index = descSetLayoutIndex;
-			for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-				auto& argEnc = _argumentEncoder[stage];
-				if (argEnc.mtlArgumentEncoder) {
-					bb.offset = descSetOffset + argEnc.argumentBufferOffset;
-					cmdEncoder->bindBuffer(bb, MVKShaderStage(stage));
-				}
-			}
+	id<MTLBuffer> mtlArgBuff = descSet->getMetalArgumentBuffer();
+	if (cmdEncoder && mtlArgBuff) {
+		MVKMTLBufferBinding bb;
+		bb.mtlBuffer = mtlArgBuff;
+		bb.index = descSetLayoutIndex;
+		bb.offset = descSet->getMetalArgumentBufferOffset();
+		for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
+			cmdEncoder->bindBuffer(bb, MVKShaderStage(stage));
 		}
 	}
 }
@@ -68,11 +62,7 @@ void MVKDescriptorSetLayout::bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
 void MVKDescriptorSetLayout::bindMetalArgumentBuffer(MVKDescriptorSet* descSet) {
 	id<MTLBuffer> mtlArgBuff = descSet ? descSet->getMetalArgumentBuffer() : nil;
 	NSUInteger descSetOffset = descSet ? descSet->getMetalArgumentBufferOffset() : 0;
-	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-		auto& argEnc = _argumentEncoder[stage];
-		[argEnc.mtlArgumentEncoder setArgumentBuffer: mtlArgBuff
-											  offset: (descSetOffset + argEnc.argumentBufferOffset)];
-	}
+	[_mtlArgumentEncoder setArgumentBuffer: mtlArgBuff offset: descSetOffset];
 }
 
 static const void* getWriteParameters(VkDescriptorType type, const VkDescriptorImageInfo* pImageInfo,
@@ -242,7 +232,7 @@ MVKDescriptorSetLayout::MVKDescriptorSetLayout(MVKDevice* device,
 		_descriptorCount += _bindings.back().getDescriptorCount();
 	}
 
-	initMTLArgumentEncoders();
+	initMTLArgumentEncoder();
 }
 
 // Find and return an array of binding flags from the pNext chain of pCreateInfo,
@@ -261,30 +251,28 @@ const VkDescriptorBindingFlags* MVKDescriptorSetLayout::getBindingFlags(const Vk
 	return nullptr;
 }
 
-void MVKDescriptorSetLayout::initMTLArgumentEncoders() {
+void MVKDescriptorSetLayout::initMTLArgumentEncoder() {
+	_mtlArgumentEncoder = nil;
 	_argumentBufferSize = 0;
 
 	if ( !isUsingMetalArgumentBuffer() ) { return; }
 
-	auto* mvkDvc = getDevice();
 	@autoreleasepool {
-		id<MTLDevice> mtlDvc = mvkDvc->getMTLDevice();
 		NSMutableArray<MTLArgumentDescriptor*>* args = [NSMutableArray arrayWithCapacity: _bindings.size()];
-		for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-			[args removeAllObjects];
-			uint32_t argIdx = 0;
-			for (auto& dslBind : _bindings) {
-				dslBind.addMTLArgumentDescriptors(stage, args, argIdx);
-			}
-			if (args.count) {
-				auto& argEnc = _argumentEncoder[stage];
-				argEnc.mtlArgumentEncoder = [mtlDvc newArgumentEncoderWithArguments: args];		// retained
-				argEnc.argumentBufferOffset = _argumentBufferSize;
-				_argumentBufferSize += mvkAlignByteCount(argEnc.mtlArgumentEncoder.encodedLength,
-														 mvkDvc->_pMetalFeatures->mtlBufferAlignment);
-			}
+		uint32_t argIdx = 0;
+		for (auto& dslBind : _bindings) {
+			dslBind.addMTLArgumentDescriptors(args, argIdx);
+		}
+		if (args.count) {
+			_mtlArgumentEncoder = [getMTLDevice() newArgumentEncoderWithArguments: args];		// retained
+			_argumentBufferSize += mvkAlignByteCount(_mtlArgumentEncoder.encodedLength,
+													 getDevice()->_pMetalFeatures->mtlBufferAlignment);
 		}
 	}
+}
+
+MVKDescriptorSetLayout::~MVKDescriptorSetLayout() {
+	[_mtlArgumentEncoder release];
 }
 
 
@@ -787,14 +775,9 @@ MVKDescriptorPool::MVKDescriptorPool(MVKDevice* device, const VkDescriptorPoolCr
 			auto& poolSize = pCreateInfo->pPoolSizes[poolIdx];
 			mtlArgBuffSize += getDescriptorByteCountForMetalArgumentBuffer(poolSize.type) * poolSize.descriptorCount;
 		}
-		mtlArgBuffSize += pCreateInfo->maxSets * _device->_pMetalFeatures->mtlBufferAlignment;	// Leave room for each desc set to be aligned
 
-		// Each shader stage uses it's own arg buffer layout. As a result, we need to significantly
-		// overallocate space here, since we don't yet know how the descriptor set layouts will make
-		// use of the descriptors across each pipeline stage. Ideally, the same MVKMTLArgumentEncoder
-		// should be used across all pipeline stages, but that doesn't seem to be possible with present
-		// combination of SPIRV-Cross and Metal behaviour.
-		mtlArgBuffSize *= kMVKShaderStageCount;
+		// Leave room for each desc set to be aligned
+		mtlArgBuffSize += pCreateInfo->maxSets * _device->_pMetalFeatures->mtlBufferAlignment;
 
 		if (mtlArgBuffSize) {
 			_mtlArgumentBuffer = [getMTLDevice() newBufferWithLength: mtlArgBuffSize options: MTLResourceStorageModeShared];	// retained

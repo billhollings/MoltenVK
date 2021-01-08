@@ -34,13 +34,6 @@ class MVKCommandEncoder;
 #pragma mark -
 #pragma mark MVKDescriptorSetLayout
 
-/** Tracks a MTLArgumentEncoder and its offset into a Metal argument buffer. */
-typedef struct MVKMTLArgumentEncoder {
-	id<MTLArgumentEncoder> mtlArgumentEncoder = nil;
-	NSUInteger argumentBufferOffset = 0;
-	~MVKMTLArgumentEncoder() { [mtlArgumentEncoder release]; }
-} MVKMTLArgumentEncoder;
-
 /** Represents a Vulkan descriptor set layout. */
 class MVKDescriptorSetLayout : public MVKVulkanAPIDeviceObject {
 
@@ -86,6 +79,8 @@ public:
 
 	MVKDescriptorSetLayout(MVKDevice* device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo);
 
+	~MVKDescriptorSetLayout() override;
+
 protected:
 	friend class MVKPipelineLayout;
 	friend class MVKDescriptorPool;
@@ -99,12 +94,12 @@ protected:
 	inline NSUInteger getArgumentBufferSize() { return _argumentBufferSize; }
 	const VkDescriptorBindingFlags* getBindingFlags(const VkDescriptorSetLayoutCreateInfo* pCreateInfo);
 	void bindMetalArgumentBuffer(MVKDescriptorSet* descSet);
-	void initMTLArgumentEncoders();
+	void initMTLArgumentEncoder();
 
 	MVKSmallVector<MVKDescriptorSetLayoutBinding> _bindings;
 	std::unordered_map<uint32_t, uint32_t> _bindingToIndex;
 	MVKShaderResourceBinding _mtlResourceCounts;
-	MVKMTLArgumentEncoder _argumentEncoder[kMVKShaderStageCount];
+	id<MTLArgumentEncoder> _mtlArgumentEncoder;
 	NSUInteger _argumentBufferSize;
 	std::mutex _argEncodingLock;
 	uint32_t _descriptorCount;

@@ -1471,6 +1471,7 @@ void MVKGraphicsPipeline::initMVKShaderConverterContext(SPIRVToMSLConversionConf
 	shaderContext.options.mslOptions.texture_buffer_native = _device->_pMetalFeatures->textureBuffers;
 	shaderContext.options.mslOptions.argument_buffers = supportsMetalArgumentBuffers();
 	shaderContext.options.mslOptions.force_active_argument_buffer_resources = supportsMetalArgumentBuffers();
+	shaderContext.options.mslOptions.pad_argument_buffer_resources = supportsMetalArgumentBuffers();
 
     MVKPipelineLayout* layout = (MVKPipelineLayout*)pCreateInfo->layout;
     layout->populateShaderConverterContext(shaderContext);
@@ -1715,6 +1716,7 @@ MVKMTLFunction MVKComputePipeline::getMTLFunction(const VkComputePipelineCreateI
     shaderContext.options.mslOptions.fixed_subgroup_size = mvkIsAnyFlagEnabled(pSS->flags, VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT_EXT) ? 0 : _device->_pMetalFeatures->maxSubgroupSize;
 	shaderContext.options.mslOptions.argument_buffers = supportsMetalArgumentBuffers();
 	shaderContext.options.mslOptions.force_active_argument_buffer_resources = supportsMetalArgumentBuffers();
+	shaderContext.options.mslOptions.pad_argument_buffer_resources = supportsMetalArgumentBuffers();
 #if MVK_MACOS
     shaderContext.options.mslOptions.emulate_subgroups = !_device->_pMetalFeatures->simdPermute;
 #endif
@@ -2020,6 +2022,7 @@ namespace SPIRV_CROSS_NAMESPACE {
 				opt.enable_decoration_binding,
 				opt.texture_buffer_native,
 				opt.force_active_argument_buffer_resources,
+				opt.pad_argument_buffer_resources,
 				opt.force_native_arrays,
 				opt.enable_clip_distance_user_varying,
 				opt.multi_patch_workgroup,

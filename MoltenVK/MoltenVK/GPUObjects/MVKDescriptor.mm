@@ -368,12 +368,9 @@ void MVKDescriptorSetLayoutBinding::push(MVKCommandEncoder* cmdEncoder,
 bool MVKDescriptorSetLayoutBinding::isUsingMetalArgumentBuffer() const  { return _layout->isUsingMetalArgumentBuffer(); };
 
 // Adds MTLArgumentDescriptors to the array, and updates resource indexes consumed.
-void MVKDescriptorSetLayoutBinding::addMTLArgumentDescriptors(uint32_t stage,
-															  NSMutableArray<MTLArgumentDescriptor*>* args,
+void MVKDescriptorSetLayoutBinding::addMTLArgumentDescriptors(NSMutableArray<MTLArgumentDescriptor*>* args,
 															  uint32_t& argIdx) {
-	if ( !_applyToStage[stage]) { return; }
-
-	_argumentBufferIndex[stage] = argIdx;
+	_argumentBufferIndex = argIdx;
 
 	switch (getDescriptorType()) {
 
@@ -454,12 +451,8 @@ void MVKDescriptorSetLayoutBinding::writeToMetalArgumentBuffer(id<MTLBuffer> mtl
 															   uint32_t elementIndex) {
 	if ( !isUsingMetalArgumentBuffer() || !mtlBuffer ) { return; }
 
-	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-		if (_applyToStage[stage]) {
-			uint32_t argIdx = getMTLArgumentBufferIndex(stage, elementIndex);
-			[_layout->_argumentEncoder[stage].mtlArgumentEncoder setBuffer: mtlBuffer offset: offset atIndex: argIdx];
-		}
-	}
+	uint32_t argIdx = getMTLArgumentBufferIndex(elementIndex);
+	[_layout->_mtlArgumentEncoder setBuffer: mtlBuffer offset: offset atIndex: argIdx];
 }
 
 void MVKDescriptorSetLayoutBinding::writeToMetalArgumentBuffer(id<MTLTexture> mtlTexture,
@@ -468,12 +461,8 @@ void MVKDescriptorSetLayoutBinding::writeToMetalArgumentBuffer(id<MTLTexture> mt
 															   uint32_t elementIndex) {
 	if ( !isUsingMetalArgumentBuffer() || !mtlTexture ) { return; }
 
-	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-		if (_applyToStage[stage]) {
-			uint32_t argIdx = getMTLArgumentBufferIndex(stage, elementIndex * planeCount + planeIndex);
-			[_layout->_argumentEncoder[stage].mtlArgumentEncoder setTexture: mtlTexture atIndex: argIdx];
-		}
-	}
+	uint32_t argIdx = getMTLArgumentBufferIndex(elementIndex * planeCount + planeIndex);
+	[_layout->_mtlArgumentEncoder setTexture: mtlTexture atIndex: argIdx];
 }
 
 void MVKDescriptorSetLayoutBinding::writeToMetalArgumentBuffer(id<MTLSamplerState> mtlSamplerState,
@@ -483,12 +472,8 @@ void MVKDescriptorSetLayoutBinding::writeToMetalArgumentBuffer(id<MTLSamplerStat
 	// Metal requires sampler, so get default if not provided.
 	if ( !mtlSamplerState ) { mtlSamplerState = getDevice()->getDefaultMTLSamplerState(); }
 
-	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-		if (_applyToStage[stage]) {
-			uint32_t argIdx = getMTLArgumentBufferIndex(stage, elementIndex);
-			[_layout->_argumentEncoder[stage].mtlArgumentEncoder setSamplerState: mtlSamplerState atIndex: argIdx];
-		}
-	}
+	uint32_t argIdx = getMTLArgumentBufferIndex(elementIndex);
+	[_layout->_mtlArgumentEncoder setSamplerState: mtlSamplerState atIndex: argIdx];
 }
 
 void MVKDescriptorSetLayoutBinding::writeToMetalArgumentBuffer(uint8_t* pSrcData,
@@ -496,13 +481,9 @@ void MVKDescriptorSetLayoutBinding::writeToMetalArgumentBuffer(uint8_t* pSrcData
 															   NSUInteger dataLen) {
 	if ( !isUsingMetalArgumentBuffer() || !pSrcData ) { return; }
 
-	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-		if (_applyToStage[stage]) {
-			uint32_t argIdx = getMTLArgumentBufferIndex(stage);
-			uint8_t* pDstData = (uint8_t*)[_layout->_argumentEncoder[stage].mtlArgumentEncoder constantDataAtIndex: argIdx];
-			if (pDstData) { memcpy(pDstData + dstOffset, pSrcData, dataLen); }
-		}
-	}
+	uint32_t argIdx = getMTLArgumentBufferIndex();
+	uint8_t* pDstData = (uint8_t*)[_layout->_mtlArgumentEncoder constantDataAtIndex: argIdx];
+	if (pDstData) { memcpy(pDstData + dstOffset, pSrcData, dataLen); }
 }
 
 // If depth compare is required, but unavailable on the device, the sampler can only be used as an immutable sampler
@@ -567,14 +548,13 @@ MVKDescriptorSetLayoutBinding::MVKDescriptorSetLayoutBinding(MVKDevice* device,
 
 	_info.pImmutableSamplers = nullptr;     // Remove dangling pointer
 
-	for (uint32_t i = kMVKShaderStageVertex; i < kMVKShaderStageCount; i++) {
-        // Determine if this binding is used by this shader stage
-        _applyToStage[i] = mvkAreAllFlagsEnabled(pBinding->stageFlags, mvkVkShaderStageFlagBitsFromMVKShaderStage(MVKShaderStage(i)));
-	    // If this binding is used by the shader, set the Metal resource index
-        if (_applyToStage[i]) {
-            initMetalResourceIndexOffsets(&_mtlResourceIndexOffsets.stages[i],
-                                          &layout->_mtlResourceCounts.stages[i], pBinding);
-        }
+	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
+        // Determine if this binding is used by this shader stage, and
+		// if this binding is used by the shader, set the Metal resource index
+        _applyToStage[stage] = mvkAreAllFlagsEnabled(pBinding->stageFlags, mvkVkShaderStageFlagBitsFromMVKShaderStage(MVKShaderStage(stage)));
+		initMetalResourceIndexOffsets(&_mtlResourceIndexOffsets.stages[stage],
+									  &layout->_mtlResourceCounts.stages[stage],
+									  pBinding, stage);
     }
 
     // If immutable samplers are defined, copy them in
@@ -617,22 +597,30 @@ MVKDescriptorSetLayoutBinding::~MVKDescriptorSetLayoutBinding() {
 // specified descriptor set binding counts, and updates those counts accordingly.
 void MVKDescriptorSetLayoutBinding::initMetalResourceIndexOffsets(MVKShaderStageResourceBinding* pBindingIndexes,
 																  MVKShaderStageResourceBinding* pDescSetCounts,
-																  const VkDescriptorSetLayoutBinding* pBinding) {
+																  const VkDescriptorSetLayoutBinding* pBinding,
+																  uint32_t stage) {
 
 	// Sets an index offset and updates both that index and the general resource index.
 	// Can be used multiply for combined multi-resource descriptor types.
+	// When using Metal argument buffers, we accumulate the resource indexes cummulatively, across all resource types.
 #	define setResourceIndexOffset(rezIdx) \
 	do { \
-		pBindingIndexes->rezIdx = isUsingMetalArgumentBuffer() ?  pDescSetCounts->resourceIndex : pDescSetCounts->rezIdx; \
-		pDescSetCounts->rezIdx += descCnt; \
-		pBindingIndexes->resourceIndex = pDescSetCounts->resourceIndex; \
-		pDescSetCounts->resourceIndex += descCnt; \
+		if (_applyToStage[stage] || isUsingMetalArgumentBuffer()) { \
+			pBindingIndexes->rezIdx = isUsingMetalArgumentBuffer() ?  pDescSetCounts->resourceIndex : pDescSetCounts->rezIdx; \
+			pDescSetCounts->rezIdx += descCnt; \
+			pBindingIndexes->resourceIndex = pDescSetCounts->resourceIndex; \
+			pDescSetCounts->resourceIndex += descCnt; \
+		} \
 	} while(false)
+
+	// Only perform validation if this binding is used by the stage
+#	define breakIfUnused() if ( !_applyToStage[stage] ) break
 
 	uint32_t descCnt = pBinding->descriptorType == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT ? 1 : pBinding->descriptorCount;
     switch (pBinding->descriptorType) {
         case VK_DESCRIPTOR_TYPE_SAMPLER:
 			setResourceIndexOffset(samplerIndex);
+			breakIfUnused();
 
 			if (pBinding->descriptorCount > 1 && !_device->_pMetalFeatures->arrayOfSamplers) {
 				_layout->setConfigurationResult(reportError(VK_ERROR_FEATURE_NOT_PRESENT, "Device %s does not support arrays of samplers.", _device->getName()));
@@ -642,6 +630,7 @@ void MVKDescriptorSetLayoutBinding::initMetalResourceIndexOffsets(MVKShaderStage
         case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
 			setResourceIndexOffset(textureIndex);
 			setResourceIndexOffset(samplerIndex);
+			breakIfUnused();
 
 			if (pBinding->descriptorCount > 1) {
 				if ( !_device->_pMetalFeatures->arrayOfTextures ) {
@@ -673,6 +662,7 @@ void MVKDescriptorSetLayoutBinding::initMetalResourceIndexOffsets(MVKShaderStage
         case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
         case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
 			setResourceIndexOffset(textureIndex);
+			breakIfUnused();
 
 			if (pBinding->descriptorCount > 1 && !_device->_pMetalFeatures->arrayOfTextures) {
 				_layout->setConfigurationResult(reportError(VK_ERROR_FEATURE_NOT_PRESENT, "Device %s does not support arrays of textures.", _device->getName()));
