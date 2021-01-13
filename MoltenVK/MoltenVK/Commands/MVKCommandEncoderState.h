@@ -384,8 +384,7 @@ protected:
         db.isDirty = true;
 
         for (auto iter = bindings.begin(), end = bindings.end(); iter != end; ++iter) {
-            if( iter->index == db.index &&
-			   iter->useArgumentBuffer == db.useArgumentBuffer ) {
+            if(match(db, *iter)) {
                 *iter = db;
                 return;
             }
@@ -398,6 +397,14 @@ protected:
 	void bind(const MVKMTLTextureBinding& tb, V& texBindings, bool& bindingsDirtyFlag, bool& needsSwizzleFlag) {
 		bind(tb, texBindings, bindingsDirtyFlag);
 		if (tb.swizzle != 0) { needsSwizzleFlag = true; }
+	}
+
+	// Returns whether the two bindings represent the same descriptor set binding
+	template<class T>
+	bool match(const T& b1, const T& b2) {
+		return (b1.descriptorSetIndex == b2.descriptorSetIndex &&
+				b1.index == b2.index &&
+				b1.useArgumentBuffer == b2.useArgumentBuffer);
 	}
 
     // Template function that executes a lambda expression on each dirty element of

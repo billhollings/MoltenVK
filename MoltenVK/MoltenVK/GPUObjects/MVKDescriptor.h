@@ -376,6 +376,7 @@ public:
 	~MVKInlineUniformBlockDescriptor() { reset(); }
 
 protected:
+	id<MTLBuffer> getMTLBuffer();
 	uint8_t* getData();
 
 	void* _buffer = nullptr;
