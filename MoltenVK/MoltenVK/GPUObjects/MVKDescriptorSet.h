@@ -24,7 +24,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include <mutex>
 
 class MVKDescriptorPool;
 class MVKPipelineLayout;
@@ -47,8 +46,9 @@ public:
 
 	/** Encodes this descriptor set layout and the specified descriptor set on the specified command encoder. */
 	void bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
+						   VkPipelineBindPoint pipelineBindPoint,
+						   uint32_t descSetIndex,
 						   MVKDescriptorSet* descSet,
-						   uint32_t descSetLayoutIndex,
 						   MVKShaderResourceBinding& dslMTLRezIdxOffsets,
 						   MVKArrayRef<uint32_t> dynamicOffsets,
 						   uint32_t& dynamicOffsetIndex);
@@ -66,8 +66,8 @@ public:
 						   MVKShaderResourceBinding& dslMTLRezIdxOffsets);
 
 
-	/** Populates the specified shader converter context, at the specified DSL index. */
-	void populateShaderConverterContext(mvk::SPIRVToMSLConversionConfiguration& context,
+	/** Populates the specified shader converter config, at the specified DSL index. */
+	void populateShaderConverterContext(mvk::SPIRVToMSLConversionConfiguration& shaderConfig,
                                         MVKShaderResourceBinding& dslMTLRezIdxOffsets,
                                         uint32_t dslIndex);
 
@@ -77,9 +77,11 @@ public:
 	/** Returns whether this layout is using an argument buffer. */
 	inline bool isUsingMetalArgumentBuffer() const  { return supportsMetalArgumentBuffers() && !isPushDescriptorLayout(); };
 
-	MVKDescriptorSetLayout(MVKDevice* device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo);
+	/** Returns a new MTLArgumentEncoder for the stage, populated from this layout and info from the shader config.  */
+	id<MTLArgumentEncoder> newMTLArgumentEncoder(mvk::SPIRVToMSLConversionConfiguration& shaderConfig,
+												 uint32_t descSetIdx);
 
-	~MVKDescriptorSetLayout() override;
+	MVKDescriptorSetLayout(MVKDevice* device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo);
 
 protected:
 	friend class MVKPipelineLayout;
@@ -93,15 +95,12 @@ protected:
 	inline uint32_t getDescriptorIndex(uint32_t binding, uint32_t elementIndex = 0) { return getBinding(binding)->getDescriptorIndex(elementIndex); }
 	inline NSUInteger getArgumentBufferSize() { return _argumentBufferSize; }
 	const VkDescriptorBindingFlags* getBindingFlags(const VkDescriptorSetLayoutCreateInfo* pCreateInfo);
-	void bindMetalArgumentBuffer(MVKDescriptorSet* descSet);
-	void initMTLArgumentEncoder();
+	void initMetalArgumentBufferIndexes();
 
 	MVKSmallVector<MVKDescriptorSetLayoutBinding> _bindings;
 	std::unordered_map<uint32_t, uint32_t> _bindingToIndex;
 	MVKShaderResourceBinding _mtlResourceCounts;
-	id<MTLArgumentEncoder> _mtlArgumentEncoder;
 	NSUInteger _argumentBufferSize;
-	std::mutex _argEncodingLock;
 	uint32_t _descriptorCount;
 	bool _isPushDescriptorLayout;
 };
@@ -141,6 +140,15 @@ public:
 	/** Returns an MTLBuffer region allocation. */
 	const MVKMTLBufferAllocation* acquireMTLBufferRegion(NSUInteger length);
 
+	/**
+	 * Returns the Metal argument buffer to which resources are written,
+	 * or return nil if Metal argument buffers are not being used.
+	 */
+	id<MTLBuffer> getMetalArgumentBuffer();
+
+	/** Returns the offset into the Metal argument buffer to which resources are written. */
+	inline NSUInteger getMetalArgumentBufferOffset() { return _mtlArgumentBufferOffset; }
+
 	MVKDescriptorSet(MVKDescriptorPool* pool);
 
 protected:
@@ -154,8 +162,6 @@ protected:
 					  uint32_t variableDescriptorCount,
 					  NSUInteger mtlArgumentBufferOffset);
 	void free(bool isPoolReset);
-	id<MTLBuffer> getMetalArgumentBuffer();
-	inline NSUInteger getMetalArgumentBufferOffset() { return _mtlArgumentBufferOffset; }
 
 	MVKSmallVector<MVKDescriptor*> _descriptors;
 	MVKDescriptorSetLayout* _layout;

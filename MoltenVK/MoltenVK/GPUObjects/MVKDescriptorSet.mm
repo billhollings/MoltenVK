@@ -29,40 +29,34 @@ using namespace std;
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKDescriptorSetLayout::bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
+											   VkPipelineBindPoint pipelineBindPoint,
+											   uint32_t descSetIndex,
 											   MVKDescriptorSet* descSet,
-											   uint32_t descSetLayoutIndex,
 											   MVKShaderResourceBinding& dslMTLRezIdxOffsets,
 											   MVKArrayRef<uint32_t> dynamicOffsets,
 											   uint32_t& dynamicOffsetIndex) {
 	if (!cmdEncoder) { clearConfigurationResult(); }
 	if (_isPushDescriptorLayout ) { return; }
 
-	lock_guard<mutex> lock(_argEncodingLock);
-	bindMetalArgumentBuffer(descSet);
-
-	for (auto& dslBind : _bindings) {
-		dslBind.bind(cmdEncoder, descSet, dslMTLRezIdxOffsets, dynamicOffsets, dynamicOffsetIndex);
-	}
-
-	bindMetalArgumentBuffer(nullptr);
-
-	// If we're using Metal argument buffer, bind it to the command encoder in each stage that will use it.
-	id<MTLBuffer> mtlArgBuff = descSet->getMetalArgumentBuffer();
-	if (cmdEncoder && mtlArgBuff) {
-		MVKMTLBufferBinding bb;
-		bb.mtlBuffer = mtlArgBuff;
-		bb.index = descSetLayoutIndex;
-		bb.offset = descSet->getMetalArgumentBufferOffset();
-		for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-			cmdEncoder->bindBuffer(bb, MVKShaderStage(stage));
+	// Bind the descriptor set to the bind point, and if we're using a Metal argument buffer,
+	// bind it to the command encoder in each stage that will use it.
+	if (cmdEncoder) {
+		cmdEncoder->bindDescriptorSet(pipelineBindPoint, descSet, descSetIndex);
+		if (isUsingMetalArgumentBuffer()) {
+			MVKMTLBufferBinding bb;
+			bb.mtlBuffer = descSet->getMetalArgumentBuffer();
+			bb.offset = descSet->getMetalArgumentBufferOffset();
+			bb.index = descSetIndex;
+			for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
+				cmdEncoder->bindBuffer(bb, MVKShaderStage(stage));
+			}
 		}
 	}
-}
 
-void MVKDescriptorSetLayout::bindMetalArgumentBuffer(MVKDescriptorSet* descSet) {
-	id<MTLBuffer> mtlArgBuff = descSet ? descSet->getMetalArgumentBuffer() : nil;
-	NSUInteger descSetOffset = descSet ? descSet->getMetalArgumentBufferOffset() : 0;
-	[_mtlArgumentEncoder setArgumentBuffer: mtlArgBuff offset: descSetOffset];
+	for (auto& dslBind : _bindings) {
+		dslBind.bind(cmdEncoder, pipelineBindPoint, descSetIndex, descSet,
+					 dslMTLRezIdxOffsets, dynamicOffsets, dynamicOffsetIndex);
+	}
 }
 
 static const void* getWriteParameters(VkDescriptorType type, const VkDescriptorImageInfo* pImageInfo,
@@ -186,17 +180,28 @@ void MVKDescriptorSetLayout::pushDescriptorSet(MVKCommandEncoder* cmdEncoder,
     }
 }
 
-void MVKDescriptorSetLayout::populateShaderConverterContext(mvk::SPIRVToMSLConversionConfiguration& context,
+void MVKDescriptorSetLayout::populateShaderConverterContext(mvk::SPIRVToMSLConversionConfiguration& shaderConfig,
                                                             MVKShaderResourceBinding& dslMTLRezIdxOffsets,
 															uint32_t dslIndex) {
 	uint32_t bindCnt = (uint32_t)_bindings.size();
 	for (uint32_t bindIdx = 0; bindIdx < bindCnt; bindIdx++) {
-		_bindings[bindIdx].populateShaderConverterContext(context, dslMTLRezIdxOffsets, dslIndex);
+		_bindings[bindIdx].populateShaderConverterContext(shaderConfig, dslMTLRezIdxOffsets, dslIndex);
 	}
 
 	// Mark if Metal argument buffers are in use, but this descriptor set layout is not using them.
 	if (supportsMetalArgumentBuffers() && !isUsingMetalArgumentBuffer()) {
-		context.discreteDescriptorSets.push_back(dslIndex);
+		shaderConfig.discreteDescriptorSets.push_back(dslIndex);
+	}
+}
+
+id<MTLArgumentEncoder> MVKDescriptorSetLayout::newMTLArgumentEncoder(mvk::SPIRVToMSLConversionConfiguration& shaderConfig,
+																	 uint32_t descSetIdx) {
+	@autoreleasepool {
+		NSMutableArray<MTLArgumentDescriptor*>* args = [NSMutableArray arrayWithCapacity: _bindings.size()];
+		for (auto& dslBind : _bindings) {
+			dslBind.addMTLArgumentDescriptors(args, shaderConfig, descSetIdx);
+		}
+		return (args.count) ? [getMTLDevice() newArgumentEncoderWithArguments: args] : nil;
 	}
 }
 
@@ -232,7 +237,7 @@ MVKDescriptorSetLayout::MVKDescriptorSetLayout(MVKDevice* device,
 		_descriptorCount += _bindings.back().getDescriptorCount();
 	}
 
-	initMTLArgumentEncoder();
+	initMetalArgumentBufferIndexes();
 }
 
 // Find and return an array of binding flags from the pNext chain of pCreateInfo,
@@ -251,28 +256,13 @@ const VkDescriptorBindingFlags* MVKDescriptorSetLayout::getBindingFlags(const Vk
 	return nullptr;
 }
 
-void MVKDescriptorSetLayout::initMTLArgumentEncoder() {
-	_mtlArgumentEncoder = nil;
+void MVKDescriptorSetLayout::initMetalArgumentBufferIndexes() {
 	_argumentBufferSize = 0;
-
-	if ( !isUsingMetalArgumentBuffer() ) { return; }
-
-	@autoreleasepool {
-		NSMutableArray<MTLArgumentDescriptor*>* args = [NSMutableArray arrayWithCapacity: _bindings.size()];
-		uint32_t argIdx = 0;
-		for (auto& dslBind : _bindings) {
-			dslBind.addMTLArgumentDescriptors(args, argIdx);
-		}
-		if (args.count) {
-			_mtlArgumentEncoder = [getMTLDevice() newArgumentEncoderWithArguments: args];		// retained
-			_argumentBufferSize += mvkAlignByteCount(_mtlArgumentEncoder.encodedLength,
-													 getDevice()->_pMetalFeatures->mtlBufferAlignment);
-		}
+	uint32_t argIdx = 0;
+	for (auto& dslBind : _bindings) {
+		dslBind.initMetalArgumentBufferIndexes(argIdx, _argumentBufferSize);
 	}
-}
-
-MVKDescriptorSetLayout::~MVKDescriptorSetLayout() {
-	[_mtlArgumentEncoder release];
+	_argumentBufferSize = mvkAlignByteCount(_argumentBufferSize, getDevice()->_pMetalFeatures->mtlBufferAlignment);
 }
 
 
@@ -293,9 +283,6 @@ template<typename DescriptorAction>
 void MVKDescriptorSet::write(const DescriptorAction* pDescriptorAction,
 							 size_t stride,
 							 const void* pData) {
-
-	lock_guard<mutex> lock(_layout->_argEncodingLock);
-	_layout->bindMetalArgumentBuffer(this);
 
 	MVKDescriptorSetLayoutBinding* mvkDSLBind = _layout->getBinding(pDescriptorAction->dstBinding);
 	VkDescriptorType descType = mvkDSLBind->getDescriptorType();
@@ -322,8 +309,6 @@ void MVKDescriptorSet::write(const DescriptorAction* pDescriptorAction,
 	// contents here, after filling it, seems to correct that.
 	// Sigh. A bug report has been filed with Apple.
 	if (getInstance()->isCurrentlyAutoGPUCapturing()) { [_pool->_mtlArgumentBuffer contents]; }
-
-	_layout->bindMetalArgumentBuffer(nullptr);
 }
 
 // Create concrete implementations of the three variations of the write() function.
@@ -412,7 +397,7 @@ MVKDescriptorSet::MVKDescriptorSet(MVKDescriptorPool* pool) : MVKVulkanAPIDevice
 #pragma mark MVKDescriptorTypePreallocation
 
 #ifndef MVK_CONFIG_PREALLOCATE_DESCRIPTORS
-#   define MVK_CONFIG_PREALLOCATE_DESCRIPTORS    1
+#   define MVK_CONFIG_PREALLOCATE_DESCRIPTORS    0
 #endif
 
 // Returns whether descriptors should be preallocated in the descriptor pools

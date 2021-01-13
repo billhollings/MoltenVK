@@ -26,6 +26,7 @@
 
 class MVKCommandEncoder;
 class MVKGraphicsPipeline;
+class MVKDescriptorSet;
 class MVKOcclusionQueryPool;
 
 struct MVKShaderImplicitRezBinding;
@@ -352,10 +353,14 @@ class MVKResourcesCommandEncoderState : public MVKCommandEncoderState {
 
 public:
 
-	/** Indicates that a resource is being used within an argument buffer. */
-	void useArgumentBufferResource(const MVKMTLArgumentBufferResourceUsage& resourceUsage);
+	/** Binds the specified descriptor set to the specified index. */
+	void bindDescriptorSet(MVKDescriptorSet* descSet, uint32_t descSetIndex) {
+		_boundDescriptorSets[descSetIndex] = descSet;
+	}
 
-    MVKResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder) : MVKCommandEncoderState(cmdEncoder) {}
+    MVKResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder) :
+		MVKCommandEncoderState(cmdEncoder),
+		_boundDescriptorSets(kMVKMaxDescriptorSetCount) {}
 
 protected:
 
@@ -379,7 +384,8 @@ protected:
         db.isDirty = true;
 
         for (auto iter = bindings.begin(), end = bindings.end(); iter != end; ++iter) {
-            if( iter->index == db.index ) {
+            if( iter->index == db.index &&
+			   iter->useArgumentBuffer == db.useArgumentBuffer ) {
                 *iter = db;
                 return;
             }
@@ -404,12 +410,30 @@ protected:
 			bindingsDirtyFlag = false;
 			for (auto& b : bindings) {
 				if (b.isDirty) {
-					mtlOperation(_cmdEncoder, b);
+					if (b.useArgumentBuffer) {
+						encodeToArgumentBuffer(b);
+					} else {
+						mtlOperation(_cmdEncoder, b);
+					}
 					b.isDirty = false;
 				}
 			}
 		}
 	}
+
+	// Encodes the MTLBuffer in the binding to the argument buffer.
+	void encodeToArgumentBuffer(MVKMTLBufferBinding& bufferBinding);
+
+	// Encodes the MTLTexture in the binding to the argument buffer.
+	void encodeToArgumentBuffer(MVKMTLTextureBinding& textureBinding);
+
+	// Encodes the MTLSamplerState in the binding to the argument buffer.
+	void encodeToArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding);
+
+	// Encode the argument buffer usage for the MTLResource.
+	virtual void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
+												   MTLResourceUsage mtlUsage,
+												   MTLRenderStages mtlStages) = 0;
 
 	// Updates a value at the given index in the given vector, resizing if needed.
 	template<class V>
@@ -459,8 +483,7 @@ protected:
 	void resetImpl() override;
 	void markDirty() override;
 
-	MVKSmallVector<MVKMTLArgumentBufferResourceUsage, 8> _argumentBufferResourceUsage;
-	bool _areArgumentBufferResourceUsageDirty = false;
+	MVKSmallVector<MVKDescriptorSet*, kMVKMaxDescriptorSetCount> _boundDescriptorSets;
 };
 
 
@@ -528,7 +551,9 @@ protected:
     void encodeImpl(uint32_t stage) override;
     void resetImpl() override;
     void markDirty() override;
-	void encodeArgumentBufferResources();
+	void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
+										   MTLResourceUsage mtlUsage,
+										   MTLRenderStages mtlStages) override;
 
     ResourceBindings<8> _shaderStageResourceBindings[4];
 };
@@ -567,7 +592,9 @@ public:
 protected:
     void encodeImpl(uint32_t) override;
     void resetImpl() override;
-	void encodeArgumentBufferResources();
+	void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
+										   MTLResourceUsage mtlUsage,
+										   MTLRenderStages mtlStages) override;
 
 	ResourceBindings<4> _resourceBindings;
 };

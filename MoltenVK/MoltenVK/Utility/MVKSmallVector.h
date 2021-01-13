@@ -138,7 +138,7 @@ public:
   {
   }
 
-  MVKSmallVectorImpl( const size_t n, const Type t )
+	MVKSmallVectorImpl( const size_t n, const Type t = { } )
   {
     if( n > 0 )
     {
@@ -590,7 +590,7 @@ public:
   {
   }
 
-  MVKSmallVectorImpl( const size_t n, const Type *t )
+  MVKSmallVectorImpl( const size_t n, Type *t = nullptr )
   {
     if ( n > 0 )
     {

@@ -1927,7 +1927,7 @@ MTLSamplerDescriptor* MVKSampler::newMTLSamplerDescriptor(const VkSamplerCreateI
 	mtlSampDesc.lodMinClamp = pCreateInfo->minLod;
 	mtlSampDesc.lodMaxClamp = pCreateInfo->maxLod;
 	mtlSampDesc.maxAnisotropy = (pCreateInfo->anisotropyEnable
-								 ? mvkClamp(pCreateInfo->maxAnisotropy, 1.0f, _device->_pProperties->limits.maxSamplerAnisotropy)
+								 ? mvkClamp(pCreateInfo->maxAnisotropy, 1.0f, _device->_pLimits->maxSamplerAnisotropy)
 								 : 1);
 	mtlSampDesc.normalizedCoordinates = !pCreateInfo->unnormalizedCoordinates;
 	mtlSampDesc.supportArgumentBuffers = supportsMetalArgumentBuffers();

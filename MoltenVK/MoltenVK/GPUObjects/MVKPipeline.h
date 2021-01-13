@@ -55,6 +55,7 @@ public:
 
 	/** Binds descriptor sets to a command encoder. */
     void bindDescriptorSets(MVKCommandEncoder* cmdEncoder,
+							VkPipelineBindPoint pipelineBindPoint,
                             MVKArrayRef<MVKDescriptorSet*> descriptorSets,
                             uint32_t firstSet,
                             MVKArrayRef<uint32_t> dynamicOffsets);
@@ -70,8 +71,8 @@ public:
 						   uint32_t set,
 						   const void* pData);
 
-	/** Populates the specified shader converter context. */
-	void populateShaderConverterContext(SPIRVToMSLConversionConfiguration& context);
+	/** Populates the specified shader converter config. */
+	void populateShaderConverterContext(SPIRVToMSLConversionConfiguration& shaderConfig);
 
 	/** Returns the current swizzle buffer bindings. */
 	const MVKShaderImplicitRezBinding& getSwizzleBufferIndex() { return _swizzleBufferIndex; }
@@ -99,6 +100,12 @@ public:
 
 	/** Returns the number of buffers in this layout. This is used to calculate the size of the buffer size buffer. */
 	uint32_t getBufferCount() { return _pushConstantsMTLResourceIndexes.getMaxBufferIndex(); }
+
+	/** Returns the number of descriptor sets in this pipeline layout. */
+	uint32_t getDescriptorSetCount() { return (uint32_t)_descriptorSetLayouts.size(); }
+
+	/** Returns a descriptor set layout. */
+	MVKDescriptorSetLayout* getDescriptorSetLayout(uint32_t descSetIdx) { return _descriptorSetLayouts[descSetIdx]; }
 
 	/** Returns the push constant binding info. */
 	const MVKShaderResourceBinding& getPushConstantBindings() { return _pushConstantsMTLResourceIndexes; }
@@ -168,13 +175,39 @@ public:
 	/** Returns whether all internal Metal pipeline states are valid. */
 	bool hasValidMTLPipelineStates() { return _hasValidMTLPipelineStates; }
 
+	/**
+	 * Binds the Metal argument buffers in the descriptor sets to the argument encoders.
+	 * Caller should lock the _mtlArgumentEncodingLock mutex prior to calling this,
+	 * and release the lock after calling unbindMetalArgumentBuffers().
+	 */
+	void bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets);
+
+	/** Clears all bindings to the argument encoders. */
+	void unbindMetalArgumentBuffers();
+
+	/** Writes the buffer to the Metal argument buffer. */
+	void writeToMetalArgumentBuffer(MVKMTLBufferBinding& bufferBinding);
+
+	/** Writes the texture to the Metal argument buffer. */
+	void writeToMetalArgumentBuffer(MVKMTLTextureBinding& textureBinding);
+
+	/** Writes the sampler state to the Metal argument buffer. */
+	void writeToMetalArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding);
+
+	/** A mutex lock to protect access to the Metal argument encoders. */
+	std::mutex _mtlArgumentEncodingLock;
+
 	/** Constructs an instance for the device. layout, and parent (which may be NULL). */
 	MVKPipeline(MVKDevice* device, MVKPipelineCache* pipelineCache, MVKPipelineLayout* layout, MVKPipeline* parent);
 
+	~MVKPipeline() override;
+
 protected:
 	void propagateDebugName() override {}
+	void addMTLArgumentEncoders(MVKPipelineLayout* layout, SPIRVToMSLConversionConfiguration& shaderConfig);
 
 	MVKPipelineCache* _pipelineCache;
+	MVKSmallVector<id<MTLArgumentEncoder>> _mtlArgumentEncoders;
 	MVKShaderImplicitRezBinding _swizzleBufferIndex;
 	MVKShaderImplicitRezBinding _bufferSizeBufferIndex;
 	MVKShaderImplicitRezBinding _indirectParamsIndex;

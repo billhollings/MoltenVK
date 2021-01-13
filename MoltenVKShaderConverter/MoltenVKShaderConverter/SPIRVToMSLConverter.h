@@ -106,6 +106,7 @@ namespace mvk {
 	 */
 	typedef struct MSLResourceBinding {
 		SPIRV_CROSS_NAMESPACE::MSLResourceBinding resourceBinding;
+		SPIRV_CROSS_NAMESPACE::MSLTextureType mslTextureType= SPIRV_CROSS_NAMESPACE::MSL_TEXTURE_TYPE_2D;
 		SPIRV_CROSS_NAMESPACE::MSLConstexprSampler constExprSampler;
 		bool requiresConstExprSampler = false;
 
@@ -157,6 +158,9 @@ namespace mvk {
 
         /** Returns whether the vertex buffer at the specified Vulkan binding is used by the shader. */
 		bool isVertexBufferUsed(uint32_t binding) const { return countShaderInputsAt(binding) > 0; }
+
+		/** Returns the MSLTextureType of the image resource at the descriptor set and binding. */
+		SPIRV_CROSS_NAMESPACE::MSLTextureType getMSLTextureType(uint32_t descSet, uint32_t binding) const;
 
 		/** Marks all input variables and resources as being used by the shader. */
 		void markAllInputsAndResourcesUsed();

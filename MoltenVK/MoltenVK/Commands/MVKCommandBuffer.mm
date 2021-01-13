@@ -422,11 +422,32 @@ void MVKCommandEncoder::bindPipeline(VkPipelineBindPoint pipelineBindPoint, MVKP
     }
 }
 
-void MVKCommandEncoder::useArgumentBufferResource(const MVKMTLArgumentBufferResourceUsage& resourceUsage, bool isComputeStage) {
-	if (isComputeStage) {
-		_computeResourcesState.useArgumentBufferResource(resourceUsage);
-	} else {
-		_graphicsResourcesState.useArgumentBufferResource(resourceUsage);
+MVKPipeline* MVKCommandEncoder::getPipeline(MVKPipelineBindPoint pipelineBindPoint) {
+	switch (pipelineBindPoint) {
+		case kMVKPipelineBindPointGraphics:		return _graphicsPipelineState.getPipeline();
+		case kMVKPipelineBindPointCompute:		return _computePipelineState.getPipeline();
+		default:								return nullptr;
+	}
+}
+
+MVKPipeline* MVKCommandEncoder::getPipeline(VkPipelineBindPoint pipelineBindPoint) {
+	return getPipeline(mvkMVKPipelineBindPointFromVkPipelineBindPoint(pipelineBindPoint));
+}
+
+void MVKCommandEncoder::bindDescriptorSet(VkPipelineBindPoint pipelineBindPoint,
+										  MVKDescriptorSet* descSet,
+										  uint32_t descSetIndex) {
+	switch (pipelineBindPoint) {
+		case VK_PIPELINE_BIND_POINT_GRAPHICS:
+			_graphicsResourcesState.bindDescriptorSet(descSet, descSetIndex);
+			break;
+
+		case VK_PIPELINE_BIND_POINT_COMPUTE:
+			_computeResourcesState.bindDescriptorSet(descSet, descSetIndex);
+			break;
+
+		default:
+			break;
 	}
 }
 

@@ -198,7 +198,7 @@ void MVKCmdDraw::encode(MVKCommandEncoder* cmdEncoder) {
 				
 				NSUInteger sgSize = pipeline->getTessControlStageState().threadExecutionWidth;
 				NSUInteger wgSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
-				while (wgSize > cmdEncoder->getDevice()->_pProperties->limits.maxComputeWorkGroupSize[0]) {
+				while (wgSize > cmdEncoder->getDevice()->_pLimits->maxComputeWorkGroupSize[0]) {
 					sgSize >>= 1;
 					wgSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
 				}
@@ -401,7 +401,7 @@ void MVKCmdDrawIndexed::encode(MVKCommandEncoder* cmdEncoder) {
 				// an index buffer here.
 				NSUInteger sgSize = pipeline->getTessControlStageState().threadExecutionWidth;
 				NSUInteger wgSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
-				while (wgSize > cmdEncoder->getDevice()->_pProperties->limits.maxComputeWorkGroupSize[0]) {
+				while (wgSize > cmdEncoder->getDevice()->_pLimits->maxComputeWorkGroupSize[0]) {
 					sgSize >>= 1;
 					wgSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
 				}
@@ -552,7 +552,7 @@ void MVKCmdDrawIndirect::encode(MVKCommandEncoder* cmdEncoder) {
         if (cmdEncoder->_pDeviceMetalFeatures->mslVersion >= 20100) {
             indirectSize += sizeof(MTLStageInRegionIndirectArguments) * _drawCount;
         }
-		paramsIncr = std::max((size_t)cmdEncoder->getDevice()->_pProperties->limits.minUniformBufferOffsetAlignment, sizeof(uint32_t) * 2);
+		paramsIncr = std::max((size_t)cmdEncoder->getDevice()->_pLimits->minUniformBufferOffsetAlignment, sizeof(uint32_t) * 2);
 		VkDeviceSize paramsSize = paramsIncr * _drawCount;
         tempIndirectBuff = cmdEncoder->getTempMTLBuffer(indirectSize);
         mtlIndBuff = tempIndirectBuff->_mtlBuffer;
@@ -573,7 +573,7 @@ void MVKCmdDrawIndirect::encode(MVKCommandEncoder* cmdEncoder) {
         vtxThreadExecWidth = pipeline->getTessVertexStageState().threadExecutionWidth;
         NSUInteger sgSize = pipeline->getTessControlStageState().threadExecutionWidth;
         tcWorkgroupSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
-        while (tcWorkgroupSize > cmdEncoder->getDevice()->_pProperties->limits.maxComputeWorkGroupSize[0]) {
+        while (tcWorkgroupSize > cmdEncoder->getDevice()->_pLimits->maxComputeWorkGroupSize[0]) {
             sgSize >>= 1;
             tcWorkgroupSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
         }
@@ -867,7 +867,7 @@ void MVKCmdDrawIndexedIndirect::encode(MVKCommandEncoder* cmdEncoder) {
         if (cmdEncoder->_pDeviceMetalFeatures->mslVersion >= 20100) {
             indirectSize += sizeof(MTLStageInRegionIndirectArguments) * _drawCount;
         }
-		paramsIncr = std::max((size_t)cmdEncoder->getDevice()->_pProperties->limits.minUniformBufferOffsetAlignment, sizeof(uint32_t) * 2);
+		paramsIncr = std::max((size_t)cmdEncoder->getDevice()->_pLimits->minUniformBufferOffsetAlignment, sizeof(uint32_t) * 2);
 		VkDeviceSize paramsSize = paramsIncr * _drawCount;
         tempIndirectBuff = cmdEncoder->getTempMTLBuffer(indirectSize);
         mtlIndBuff = tempIndirectBuff->_mtlBuffer;
@@ -892,7 +892,7 @@ void MVKCmdDrawIndexedIndirect::encode(MVKCommandEncoder* cmdEncoder) {
 
         NSUInteger sgSize = pipeline->getTessControlStageState().threadExecutionWidth;
         tcWorkgroupSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
-        while (tcWorkgroupSize > cmdEncoder->getDevice()->_pProperties->limits.maxComputeWorkGroupSize[0]) {
+        while (tcWorkgroupSize > cmdEncoder->getDevice()->_pLimits->maxComputeWorkGroupSize[0]) {
             sgSize >>= 1;
             tcWorkgroupSize = mvkLeastCommonMultiple(outControlPointCount, sgSize);
         }

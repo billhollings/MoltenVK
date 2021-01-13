@@ -302,8 +302,14 @@ public:
     /** Binds a pipeline to a bind point. */
     void bindPipeline(VkPipelineBindPoint pipelineBindPoint, MVKPipeline* pipeline);
 
-	/** Indicate to either the graphic or compute encoder that a resource is being used within an argument buffer. */
-	void useArgumentBufferResource(const MVKMTLArgumentBufferResourceUsage& resourceUsage, bool isComputeStage);
+	/** Returns the pipeline bound to a bind point. */
+	MVKPipeline* getPipeline(MVKPipelineBindPoint pipelineBindPoint);
+
+	/** Returns the pipeline bound to a bind point. */
+	MVKPipeline* getPipeline(VkPipelineBindPoint pipelineBindPoint);
+
+	/** Binds the descriptor set to the index at the bind point. */
+	void bindDescriptorSet(VkPipelineBindPoint pipelineBindPoint, MVKDescriptorSet* descSet, uint32_t descSetIndex);
 
 	/** Bind a buffer to either the graphic or compute encoder, based on the stage. */
 	void bindBuffer(const MVKMTLBufferBinding& binding, MVKShaderStage stage);
@@ -489,15 +495,15 @@ protected:
     MVKActivatedQueries* _pActivatedQueries;
 	MVKSmallVector<VkClearValue, kMVKDefaultAttachmentCount> _clearValues;
 	id<MTLComputeCommandEncoder> _mtlComputeEncoder;
-	MVKCommandUse _mtlComputeEncoderUse;
 	id<MTLBlitCommandEncoder> _mtlBlitEncoder;
-    MVKCommandUse _mtlBlitEncoderUse;
 	MVKPushConstantsCommandEncoderState _vertexPushConstants;
 	MVKPushConstantsCommandEncoderState _tessCtlPushConstants;
 	MVKPushConstantsCommandEncoderState _tessEvalPushConstants;
 	MVKPushConstantsCommandEncoderState _fragmentPushConstants;
 	MVKPushConstantsCommandEncoderState _computePushConstants;
     MVKOcclusionQueryCommandEncoderState _occlusionQueryState;
+	MVKCommandUse _mtlComputeEncoderUse;
+	MVKCommandUse _mtlBlitEncoderUse;
     uint32_t _flushCount = 0;
 	bool _isRenderingEntireAttachment;
 };

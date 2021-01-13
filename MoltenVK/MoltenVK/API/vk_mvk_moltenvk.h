@@ -170,8 +170,8 @@ typedef unsigned long MTLLanguageVersion;
  *     Doing so may improve descriptor set allocation performance at a cost of preallocated
  *     application memory. If this setting is disabled, the descriptors required for
  *     a descriptor set will be dynamically allocated in application memory when the
- *     descriptor set itself is allocated. This setting is enabled by default,
- *     and MoltenVK will preallocate descriptors during vkCreateDescriptorPool().
+ *     descriptor set itself is allocated. This setting is disabled by default, and
+ *     MoltenVK will dynamically allocate descriptors when the descriptor set is allocated.
  *
  * 8.  The MVK_CONFIG_USE_COMMAND_POOLING runtime environment variable or MoltenVK compile-time
  *     build setting controls whether MoltenVK should use pools to manage memory used when

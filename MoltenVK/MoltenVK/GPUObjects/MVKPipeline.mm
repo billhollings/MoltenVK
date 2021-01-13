@@ -17,7 +17,6 @@
  */
 
 #include "MVKPipeline.h"
-#include <MoltenVKShaderConverter/SPIRVToMSLConverter.h>
 #include "MVKRenderPass.h"
 #include "MVKCommandBuffer.h"
 #include "MVKFoundation.h"
@@ -38,9 +37,10 @@ using namespace SPIRV_CROSS_NAMESPACE;
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKPipelineLayout::bindDescriptorSets(MVKCommandEncoder* cmdEncoder,
-                                           MVKArrayRef<MVKDescriptorSet*> descriptorSets,
-                                           uint32_t firstSet,
-                                           MVKArrayRef<uint32_t> dynamicOffsets) {
+										   VkPipelineBindPoint pipelineBindPoint,
+										   MVKArrayRef<MVKDescriptorSet*> descriptorSets,
+										   uint32_t firstSet,
+										   MVKArrayRef<uint32_t> dynamicOffsets) {
 	if (!cmdEncoder) { clearConfigurationResult(); }
 	uint32_t dynamicOffsetIndex = 0;
 	size_t dsCnt = descriptorSets.size;
@@ -48,7 +48,8 @@ void MVKPipelineLayout::bindDescriptorSets(MVKCommandEncoder* cmdEncoder,
 		MVKDescriptorSet* descSet = descriptorSets[dsIdx];
 		uint32_t dslIdx = firstSet + dsIdx;
 		MVKDescriptorSetLayout* dsl = _descriptorSetLayouts[dslIdx];
-		dsl->bindDescriptorSet(cmdEncoder, descSet, dslIdx,
+		dsl->bindDescriptorSet(cmdEncoder, pipelineBindPoint,
+							   dslIdx, descSet,
 							   _dslMTLResourceIndexOffsets[dslIdx],
 							   dynamicOffsets, dynamicOffsetIndex);
 		if (!cmdEncoder) { setConfigurationResult(dsl->getConfigurationResult()); }
@@ -76,15 +77,15 @@ void MVKPipelineLayout::pushDescriptorSet(MVKCommandEncoder* cmdEncoder,
 	if (!cmdEncoder) { setConfigurationResult(dsl->getConfigurationResult()); }
 }
 
-void MVKPipelineLayout::populateShaderConverterContext(SPIRVToMSLConversionConfiguration& context) {
-	context.resourceBindings.clear();
-	context.discreteDescriptorSets.clear();
-	context.inlineUniformBlocks.clear();
+void MVKPipelineLayout::populateShaderConverterContext(SPIRVToMSLConversionConfiguration& shaderConfig) {
+	shaderConfig.resourceBindings.clear();
+	shaderConfig.discreteDescriptorSets.clear();
+	shaderConfig.inlineUniformBlocks.clear();
 
     // Add resource bindings defined in the descriptor set layouts
-	uint32_t dslCnt = (uint32_t)_descriptorSetLayouts.size();
+	uint32_t dslCnt = getDescriptorSetCount();
 	for (uint32_t dslIdx = 0; dslIdx < dslCnt; dslIdx++) {
-		_descriptorSetLayouts[dslIdx]->populateShaderConverterContext(context,
+		_descriptorSetLayouts[dslIdx]->populateShaderConverterContext(shaderConfig,
 																	  _dslMTLResourceIndexOffsets[dslIdx],
 																	  dslIdx);
 	}
@@ -98,7 +99,7 @@ void MVKPipelineLayout::populateShaderConverterContext(SPIRVToMSLConversionConfi
 		spv::ExecutionModelGLCompute
 	};
 	for (uint32_t i = kMVKShaderStageVertex; i < kMVKShaderStageCount; i++) {
-		mvkPopulateShaderConverterContext(context,
+		mvkPopulateShaderConverterContext(shaderConfig,
 										  _pushConstantsMTLResourceIndexes.stages[i],
 										  models[i],
 										  kPushConstDescSet,
@@ -180,11 +181,64 @@ void MVKPipeline::bindPushConstants(MVKCommandEncoder* cmdEncoder) {
 	}
 }
 
+void MVKPipeline::addMTLArgumentEncoders(MVKPipelineLayout* layout, SPIRVToMSLConversionConfiguration& shaderConfig) {
+	uint32_t dsCnt = layout->getDescriptorSetCount();
+	for (uint32_t dsIdx = 0; dsIdx < dsCnt; dsIdx++) {
+		_mtlArgumentEncoders[dsIdx] = layout->getDescriptorSetLayout(dsIdx)->newMTLArgumentEncoder(shaderConfig, dsIdx);
+	}
+}
+
+void MVKPipeline::bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets) {
+	size_t dsCnt = _mtlArgumentEncoders.size();
+	for (uint32_t dsIdx = 0; dsIdx < dsCnt; dsIdx++) {
+		MVKDescriptorSet* descSet = descriptorSets[dsIdx];
+		id<MTLBuffer> mtlArgBuff = descSet ? descSet->getMetalArgumentBuffer() : nil;
+		NSUInteger descSetOffset = descSet ? descSet->getMetalArgumentBufferOffset() : 0;
+		[_mtlArgumentEncoders[dsIdx] setArgumentBuffer: mtlArgBuff offset: descSetOffset];
+	}
+}
+
+void MVKPipeline::unbindMetalArgumentBuffers() {
+	for (auto mtlArgEnc : _mtlArgumentEncoders) { [mtlArgEnc setArgumentBuffer: nil offset: 0]; }
+}
+
+void MVKPipeline::writeToMetalArgumentBuffer(MVKMTLBufferBinding& bufferBinding) {
+	if (bufferBinding.mtlBuffer) {
+		if (bufferBinding.isInline) {
+			uint8_t* pDstData = (uint8_t*)[_mtlArgumentEncoders[bufferBinding.descriptorSetIndex] constantDataAtIndex: bufferBinding.index];
+			if (pDstData) { memcpy(pDstData + bufferBinding.offset, bufferBinding.mtlBytes, bufferBinding.size); }
+		} else {
+			[_mtlArgumentEncoders[bufferBinding.descriptorSetIndex] setBuffer: bufferBinding.mtlBuffer
+																	   offset: bufferBinding.offset
+																	  atIndex: bufferBinding.index];
+		}
+	}
+}
+
+void MVKPipeline::writeToMetalArgumentBuffer(MVKMTLTextureBinding& textureBinding) {
+	if (textureBinding.mtlTexture) {
+		[_mtlArgumentEncoders[textureBinding.descriptorSetIndex] setTexture: textureBinding.mtlTexture
+																	atIndex: textureBinding.index];
+	}
+}
+
+void MVKPipeline::writeToMetalArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding) {
+	// Metal requires sampler, so get default if not provided.
+	id<MTLSamplerState> mtlSamplerState = samplerBinding.mtlSamplerState ? samplerBinding.mtlSamplerState : getDevice()->getDefaultMTLSamplerState();
+	[_mtlArgumentEncoders[samplerBinding.descriptorSetIndex] setSamplerState: mtlSamplerState
+																	 atIndex: samplerBinding.index];
+}
+
 MVKPipeline::MVKPipeline(MVKDevice* device, MVKPipelineCache* pipelineCache, MVKPipelineLayout* layout, MVKPipeline* parent) :
 	MVKVulkanAPIDeviceObject(device),
 	_pipelineCache(pipelineCache),
 	_pushConstantsMTLResourceIndexes(layout->getPushConstantBindings()),
-	_fullImageViewSwizzle(device->_pMVKConfig->fullImageViewSwizzle) {}
+	_fullImageViewSwizzle(device->_pMVKConfig->fullImageViewSwizzle),
+	_mtlArgumentEncoders(layout->getDescriptorSetCount()) {}
+
+MVKPipeline::~MVKPipeline() {
+	mvkReleaseContainerContents(_mtlArgumentEncoders);
+}
 
 
 #pragma mark -
@@ -539,6 +593,8 @@ void MVKGraphicsPipeline::initMTLRenderPipelineState(const VkGraphicsPipelineCre
 		}
 		[tcPLDesc release];		// temp release
 		[rastPLDesc release];	// temp release
+
+		addMTLArgumentEncoders((MVKPipelineLayout*)pCreateInfo->layout, shaderContext);
 	}
 }
 
@@ -571,10 +627,14 @@ MTLRenderPipelineDescriptor* MVKGraphicsPipeline::newMTLRenderPipelineDescriptor
 	// Output
 	addFragmentOutputToPipeline(plDesc, pCreateInfo);
 
+	MVKPipelineLayout* layout = (MVKPipelineLayout*)pCreateInfo->layout;
+
 	// Metal does not allow the name of the pipeline to be changed after it has been created,
 	// and we need to create the Metal pipeline immediately to provide error feedback to app.
 	// The best we can do at this point is set the pipeline name from the layout.
-	setLabelIfNotNil(plDesc, ((MVKPipelineLayout*)pCreateInfo->layout)->getDebugName());
+	setLabelIfNotNil(plDesc, (layout)->getDebugName());
+
+	addMTLArgumentEncoders(layout, shaderContext);
 
 	return plDesc;
 }
@@ -1360,7 +1420,7 @@ void MVKGraphicsPipeline::addTessellationToPipeline(MTLRenderPipelineDescriptor*
 		}
 	}
 
-	plDesc.maxTessellationFactor = _device->_pProperties->limits.maxTessellationGenerationLevel;
+	plDesc.maxTessellationFactor = _device->_pLimits->maxTessellationGenerationLevel;
 	plDesc.tessellationFactorFormat = MTLTessellationFactorFormatHalf;  // FIXME Use Float when it becomes available
 	plDesc.tessellationFactorStepFunction = MTLTessellationFactorStepFunctionPerPatch;
 	plDesc.tessellationOutputWindingOrder = mvkMTLWindingFromSpvExecutionMode(reflectData.windingOrder);
@@ -1739,6 +1799,8 @@ MVKMTLFunction MVKComputePipeline::getMTLFunction(const VkComputePipelineCreateI
 	_needsSwizzleBuffer = funcRslts.needsSwizzleBuffer;
     _needsBufferSizeBuffer = funcRslts.needsBufferSizeBuffer;
     _needsDispatchBaseBuffer = funcRslts.needsDispatchBaseBuffer;
+
+	addMTLArgumentEncoders(layout, shaderContext);
 
 	return func;
 }
@@ -2121,6 +2183,7 @@ namespace mvk {
 	template<class Archive>
 	void serialize(Archive & archive, MSLResourceBinding& rb) {
 		archive(rb.resourceBinding,
+				rb.mslTextureType,
 				rb.constExprSampler,
 				rb.requiresConstExprSampler,
 				rb.isUsedByShader);

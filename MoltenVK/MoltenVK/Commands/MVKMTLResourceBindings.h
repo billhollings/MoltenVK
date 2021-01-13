@@ -28,19 +28,33 @@ class MVKBuffer;
 class MVKImage;
 
 
+/** Indicates the pipeline bind point, in less space than VkPipelineBindPoint, */
+typedef enum : uint8_t {
+	kMVKPipelineBindPointGraphics,
+	kMVKPipelineBindPointCompute
+} MVKPipelineBindPoint;
+
 /** Describes a MTLTexture resource binding. */
 typedef struct {
     union { id<MTLTexture> mtlTexture = nil; id<MTLTexture> mtlResource; }; // aliases
     uint32_t swizzle = 0;
-	uint16_t index = 0;
+	uint32_t index = 0;
+	MVKPipelineBindPoint pipelineBindPoint;
+	uint8_t descriptorSetIndex = 0;
+	uint8_t mtlUsage = 0;		// As MTLResourceUsage
+	uint8_t mtlStages = 0;		// As MTLRenderStages
     bool isDirty = true;
+	bool useArgumentBuffer = false;
 } MVKMTLTextureBinding;
 
 /** Describes a MTLSamplerState resource binding. */
 typedef struct {
     union { id<MTLSamplerState> mtlSamplerState = nil; id<MTLSamplerState> mtlResource; }; // aliases
-    uint16_t index = 0;
+	uint32_t index = 0;
+	MVKPipelineBindPoint pipelineBindPoint;
+	uint8_t descriptorSetIndex = 0;
     bool isDirty = true;
+	bool useArgumentBuffer = false;
 } MVKMTLSamplerStateBinding;
 
 /** Describes a MTLBuffer resource binding. */
@@ -48,18 +62,15 @@ typedef struct {
     union { id<MTLBuffer> mtlBuffer = nil; id<MTLBuffer> mtlResource; const void* mtlBytes; }; // aliases
     VkDeviceSize offset = 0;
     uint32_t size = 0;
-	uint16_t index = 0;
+	uint32_t index = 0;
+	MVKPipelineBindPoint pipelineBindPoint;
+	uint8_t descriptorSetIndex = 0;
+	uint8_t mtlUsage = 0;		// As MTLResourceUsage
+	uint8_t mtlStages = 0;		// As MTLRenderStages
     bool isDirty = true;
     bool isInline = false;
+	bool useArgumentBuffer = false;
 } MVKMTLBufferBinding;
-
-/** Describes a MTLResource binding used in a Metal argument buffer. */
-typedef struct {
-	id<MTLResource> mtlResource = nil;
-	MTLResourceUsage mtlUsage = 0;
-	MTLRenderStages mtlStages = 0;
-	bool isDirty = true;
-} MVKMTLArgumentBufferResourceUsage;
 
 /** Describes a MTLBuffer resource binding as used for an index buffer. */
 typedef struct {

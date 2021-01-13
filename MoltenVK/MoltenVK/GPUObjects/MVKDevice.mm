@@ -2047,7 +2047,7 @@ void MVKPhysicalDevice::initLimits() {
 
     _properties.limits.maxMemoryAllocationCount = kMVKUndefinedLargeUInt32;
     _properties.limits.maxSamplerAllocationCount = kMVKUndefinedLargeUInt32;
-    _properties.limits.maxBoundDescriptorSets = kMVKUndefinedLargeUInt32;
+    _properties.limits.maxBoundDescriptorSets = kMVKMaxDescriptorSetCount;
 
     _properties.limits.maxComputeWorkGroupCount[0] = kMVKUndefinedLargeUInt32;
     _properties.limits.maxComputeWorkGroupCount[1] = kMVKUndefinedLargeUInt32;
@@ -3602,7 +3602,7 @@ VkDeviceSize MVKDevice::getVkFormatTexelBufferAlignment(VkFormat format, MVKBase
 		}
 		deviceAlignment = [mtlDev minimumLinearTextureAlignmentForPixelFormat: mtlPixFmt];
 	}
-	return deviceAlignment ? deviceAlignment : _pProperties->limits.minTexelBufferOffsetAlignment;
+	return deviceAlignment ? deviceAlignment : _pLimits->minTexelBufferOffsetAlignment;
 }
 
 id<MTLBuffer> MVKDevice::getGlobalVisibilityResultMTLBuffer() {
@@ -3764,6 +3764,7 @@ void MVKDevice::initPhysicalDevice(MVKPhysicalDevice* physicalDevice, const VkDe
 	_pMVKConfig = _physicalDevice->_mvkInstance->getMoltenVKConfiguration();
 	_pMetalFeatures = _physicalDevice->getMetalFeatures();
 	_pProperties = &_physicalDevice->_properties;
+	_pLimits = &_pProperties->limits;
 	_pMemoryProperties = &_physicalDevice->_memoryProperties;
 
 	// Indicates whether semaphores should use a MTLFence if available.

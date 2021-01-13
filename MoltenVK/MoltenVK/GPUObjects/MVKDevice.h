@@ -81,7 +81,7 @@ const static uint32_t kMVKMinSwapchainImageCount = 2;
 const static uint32_t kMVKMaxSwapchainImageCount = 3;
 const static uint32_t kMVKCachedViewportScissorCount = 16;
 const static uint32_t kMVKCachedColorAttachmentCount = 8;
-
+const static uint32_t kMVKMaxDescriptorSetCount = SPIRV_CROSS_NAMESPACE::kMaxArgumentBuffers;
 
 #pragma mark -
 #pragma mark MVKPhysicalDevice
@@ -715,6 +715,9 @@ public:
 
 	/** Pointer to the properties of the underlying physical device. */
 	const VkPhysicalDeviceProperties* _pProperties;
+
+	/** Pointer to the limit properties of the underlying physical device. */
+	const VkPhysicalDeviceLimits* _pLimits;
 
 	/** Pointer to the memory properties of the underlying physical device. */
 	const VkPhysicalDeviceMemoryProperties* _pMemoryProperties;

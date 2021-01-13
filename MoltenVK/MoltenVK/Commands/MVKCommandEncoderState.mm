@@ -21,6 +21,7 @@
 #include "MVKCommandBuffer.h"
 #include "MVKRenderPass.h"
 #include "MVKPipeline.h"
+#include "MVKDescriptorSet.h"
 #include "MVKQueryPool.h"
 #include "MVKLogging.h"
 
@@ -63,7 +64,7 @@ void MVKViewportCommandEncoderState::setViewports(const MVKArrayRef<VkViewport> 
 												  bool isSettingDynamically) {
 
 	size_t vpCnt = viewports.size;
-	uint32_t maxViewports = _cmdEncoder->getDevice()->_pProperties->limits.maxViewports;
+	uint32_t maxViewports = _cmdEncoder->getDevice()->_pLimits->maxViewports;
 	if ((firstViewport + vpCnt > maxViewports) ||
 		(firstViewport >= maxViewports) ||
 		(isSettingDynamically && vpCnt == 0))
@@ -118,7 +119,7 @@ void MVKScissorCommandEncoderState::setScissors(const MVKArrayRef<VkRect2D> scis
 												bool isSettingDynamically) {
 
 	size_t sCnt = scissors.size;
-	uint32_t maxScissors = _cmdEncoder->getDevice()->_pProperties->limits.maxViewports;
+	uint32_t maxScissors = _cmdEncoder->getDevice()->_pLimits->maxViewports;
 	if ((firstScissor + sCnt > maxScissors) ||
 		(firstScissor >= maxScissors) ||
 		(isSettingDynamically && sCnt == 0))
@@ -514,35 +515,35 @@ void MVKResourcesCommandEncoderState::assertMissingSwizzles(bool needsSwizzle, c
 }
 
 #pragma mark -
-#pragma mark MVKGraphicsResourcesCommandEncoderState
+#pragma mark MVKResourcesCommandEncoderState
 
-void MVKResourcesCommandEncoderState::useArgumentBufferResource(const MVKMTLArgumentBufferResourceUsage& resourceUsage) {
-
-	if ( !resourceUsage.mtlResource ) { return; }
-
-	MVKMTLArgumentBufferResourceUsage dru = resourceUsage;   // Copy that can be marked dirty
-	MVKCommandEncoderState::markDirty();
-	_areArgumentBufferResourceUsageDirty = true;
-	dru.isDirty = true;
-
-	for (auto iter = _argumentBufferResourceUsage.begin(), end = _argumentBufferResourceUsage.end(); iter != end; ++iter) {
-		if( iter->mtlResource == dru.mtlResource ) {
-			*iter = dru;
-			return;
-		}
+void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLBufferBinding& bufferBinding) {
+	_cmdEncoder->getPipeline(bufferBinding.pipelineBindPoint)->writeToMetalArgumentBuffer(bufferBinding);
+	if ( !bufferBinding.isInline ) {
+		encodeArgumentBufferResourceUsage(bufferBinding.mtlResource, bufferBinding.mtlUsage, bufferBinding.mtlStages);
 	}
-	_argumentBufferResourceUsage.push_back(dru);
 }
+
+void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLTextureBinding& textureBinding) {
+	_cmdEncoder->getPipeline(textureBinding.pipelineBindPoint)->writeToMetalArgumentBuffer(textureBinding);
+	encodeArgumentBufferResourceUsage(textureBinding.mtlResource, textureBinding.mtlUsage, textureBinding.mtlStages);
+}
+
+void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding) {
+	_cmdEncoder->getPipeline(samplerBinding.pipelineBindPoint)->writeToMetalArgumentBuffer(samplerBinding);
+}
+
 
 // Mark everything as dirty
 void MVKResourcesCommandEncoderState::markDirty() {
 	MVKCommandEncoderState::markDirty();
-	markDirty(_argumentBufferResourceUsage, _areArgumentBufferResourceUsageDirty);
 }
 
 void MVKResourcesCommandEncoderState::resetImpl() {
-	_argumentBufferResourceUsage.clear();
-	_areArgumentBufferResourceUsageDirty = false;
+	size_t dsCnt = _boundDescriptorSets.size();
+	for (uint32_t dsIdx = 0; dsIdx < dsCnt; dsIdx++) {
+		_boundDescriptorSets[dsIdx] = nullptr;
+	}
 }
 
 
@@ -678,11 +679,12 @@ void MVKGraphicsResourcesCommandEncoderState::markDirty() {
 
 void MVKGraphicsResourcesCommandEncoderState::encodeImpl(uint32_t stage) {
 
-	encodeArgumentBufferResources();
-
 	MVKGraphicsPipeline* pipeline = (MVKGraphicsPipeline*)_cmdEncoder->_graphicsPipelineState.getPipeline();
     bool fullImageViewSwizzle = pipeline->fullImageViewSwizzle() || _cmdEncoder->getDevice()->_pMetalFeatures->nativeTextureSwizzle;
     bool forTessellation = pipeline->isTessellationPipeline();
+
+	lock_guard<mutex> lock(pipeline->_mtlArgumentEncodingLock);
+	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents());
 
 	if (stage == kMVKGraphicsStageVertex) {
         encodeBindings(kMVKShaderStageVertex, "vertex", fullImageViewSwizzle,
@@ -841,22 +843,21 @@ void MVKGraphicsResourcesCommandEncoderState::encodeImpl(uint32_t stage) {
                                                                           atIndex: b.index];
                        });
     }
+
+	pipeline->unbindMetalArgumentBuffers();
 }
 
-void MVKGraphicsResourcesCommandEncoderState::encodeArgumentBufferResources() {
-
-	encodeBinding<MVKMTLArgumentBufferResourceUsage>(_argumentBufferResourceUsage,
-													 _areArgumentBufferResourceUsageDirty,
-													 [](MVKCommandEncoder* cmdEncoder, MVKMTLArgumentBufferResourceUsage& abru)->void {
-														 if (abru.mtlStages) {
-															 auto* mtlEnc = cmdEncoder->_mtlRenderEncoder;
-															 if ([mtlEnc respondsToSelector: @selector(useResource:usage:stages:)]) {
-																 [mtlEnc useResource: abru.mtlResource usage: abru.mtlUsage stages: abru.mtlStages];
-															 } else {
-																 [mtlEnc useResource: abru.mtlResource usage: abru.mtlUsage];
-															 }
-														 }
-													 });
+void MVKGraphicsResourcesCommandEncoderState::encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
+																				MTLResourceUsage mtlUsage,
+																				MTLRenderStages mtlStages) {
+	if (mtlStages) {
+		auto* mtlEnc = _cmdEncoder->_mtlRenderEncoder;
+		if ([mtlEnc respondsToSelector: @selector(useResource:usage:stages:)]) {
+			[mtlEnc useResource: mtlResource usage: mtlUsage stages: mtlStages];
+		} else {
+			[mtlEnc useResource: mtlResource usage: mtlUsage];
+		}
+	}
 }
 
 void MVKGraphicsResourcesCommandEncoderState::resetImpl() {
@@ -904,10 +905,11 @@ void MVKComputeResourcesCommandEncoderState::markDirty() {
 
 void MVKComputeResourcesCommandEncoderState::encodeImpl(uint32_t) {
 
-	encodeArgumentBufferResources();
-
     MVKPipeline* pipeline = _cmdEncoder->_computePipelineState.getPipeline();
 	bool fullImageViewSwizzle = pipeline ? pipeline->fullImageViewSwizzle() : false;
+
+	lock_guard<mutex> lock(pipeline->_mtlArgumentEncodingLock);
+	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents());
 
     if (_resourceBindings.swizzleBufferBinding.isDirty) {
 		for (auto& b : _resourceBindings.textureBindings) {
@@ -960,15 +962,15 @@ void MVKComputeResourcesCommandEncoderState::encodeImpl(uint32_t) {
                                                  [cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch) setSamplerState: b.mtlSamplerState
 																												   atIndex: b.index];
                                              });
-}
-void MVKComputeResourcesCommandEncoderState::encodeArgumentBufferResources() {
 
-	encodeBinding<MVKMTLArgumentBufferResourceUsage>(_argumentBufferResourceUsage,
-													 _areArgumentBufferResourceUsageDirty,
-													 [](MVKCommandEncoder* cmdEncoder, MVKMTLArgumentBufferResourceUsage& abru)->void {
-														 auto* mtlEnc = cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch);
-														 [mtlEnc useResource: abru.mtlResource usage: abru.mtlUsage];
-													 });
+	pipeline->unbindMetalArgumentBuffers();
+}
+
+void MVKComputeResourcesCommandEncoderState::encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
+																			   MTLResourceUsage mtlUsage,
+																			   MTLRenderStages mtlStages) {
+	auto* mtlEnc = _cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch);
+	[mtlEnc useResource: mtlResource usage: mtlUsage];
 }
 
 void MVKComputeResourcesCommandEncoderState::resetImpl() {
