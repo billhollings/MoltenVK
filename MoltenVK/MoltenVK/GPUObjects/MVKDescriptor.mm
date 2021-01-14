@@ -855,11 +855,15 @@ void MVKInlineUniformBlockDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 	bb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
 
 	if (_isUsingIntermediaryMTLBuffer) {
-		bb.mtlBuffer = getMTLBuffer();
 		bb.isInline = false;
+		auto* mtlBuffAlloc = (MVKMTLBufferAllocation*)_buffer;
+		if (mtlBuffAlloc) {
+			bb.mtlBuffer = mtlBuffAlloc->_mtlBuffer;
+			bb.offset = mtlBuffAlloc->_offset;
+		}
 	} else {
-		bb.mtlBytes = getData();
 		bb.isInline = true;
+		bb.mtlBytes = getData();
 	}
 	bb.size = _length;
 
@@ -926,10 +930,6 @@ void MVKInlineUniformBlockDescriptor::reset() {
     _length = 0;
 	_isUsingIntermediaryMTLBuffer = false;
 	MVKDescriptor::reset();
-}
-
-id<MTLBuffer> MVKInlineUniformBlockDescriptor::getMTLBuffer() {
-	return (_isUsingIntermediaryMTLBuffer && _buffer) ? ((MVKMTLBufferAllocation*)_buffer)->_mtlBuffer : nil;
 }
 
 uint8_t* MVKInlineUniformBlockDescriptor::getData() {
