@@ -176,11 +176,12 @@ public:
 	bool hasValidMTLPipelineStates() { return _hasValidMTLPipelineStates; }
 
 	/**
-	 * Binds the Metal argument buffers in the descriptor sets to the argument encoders.
-	 * Caller should lock the _mtlArgumentEncodingLock mutex prior to calling this,
-	 * and release the lock after calling unbindMetalArgumentBuffers().
+	 * Binds the Metal argument buffer in each descriptor set that is used by the stage to the
+	 * argument encoders in this pipeline. Caller should lock the _mtlArgumentEncodingLock mutex
+	 * prior to calling this, and release the lock after calling unbindMetalArgumentBuffers().
 	 */
-	void bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets);
+	void bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets,
+								  MVKShaderStage stage);
 
 	/** Clears all bindings to the argument encoders. */
 	void unbindMetalArgumentBuffers();

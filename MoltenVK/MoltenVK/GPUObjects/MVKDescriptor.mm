@@ -583,9 +583,11 @@ MVKDescriptorSetLayoutBinding::MVKDescriptorSetLayoutBinding(MVKDevice* device,
 
 	_info.pImmutableSamplers = nullptr;     // Remove dangling pointer
 
+	// Determine which shader stages this binding is used by, update the corresponding
+	// shader stage selection in the layout, and establish the resource index offsets.
 	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-        // Determine if this binding is used by this shader stage.
         _applyToStage[stage] = mvkAreAllFlagsEnabled(pBinding->stageFlags, mvkVkShaderStageFlagBitsFromMVKShaderStage(MVKShaderStage(stage)));
+		layout->_applyToStage[stage] |= _applyToStage[stage];
 		initMetalResourceIndexOffsets(&_mtlResourceIndexOffsets.stages[stage],
 									  &layout->_mtlResourceCounts.stages[stage],
 									  pBinding, stage);
@@ -595,13 +597,13 @@ MVKDescriptorSetLayoutBinding::MVKDescriptorSetLayoutBinding(MVKDevice* device,
     if ( pBinding->pImmutableSamplers &&
         (pBinding->descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER ||
          pBinding->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ) {
-            _immutableSamplers.reserve(pBinding->descriptorCount);
-            for (uint32_t i = 0; i < pBinding->descriptorCount; i++) {
-                _immutableSamplers.push_back((MVKSampler*)pBinding->pImmutableSamplers[i]);
-                _immutableSamplers.back()->retain();
-            }
-        }
 
+		_immutableSamplers.reserve(pBinding->descriptorCount);
+		for (uint32_t i = 0; i < pBinding->descriptorCount; i++) {
+			_immutableSamplers.push_back((MVKSampler*)pBinding->pImmutableSamplers[i]);
+			_immutableSamplers.back()->retain();
+		}
+	}
 }
 
 MVKDescriptorSetLayoutBinding::MVKDescriptorSetLayoutBinding(const MVKDescriptorSetLayoutBinding& binding) :

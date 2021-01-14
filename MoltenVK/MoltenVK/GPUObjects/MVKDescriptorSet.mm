@@ -205,7 +205,7 @@ id<MTLArgumentEncoder> MVKDescriptorSetLayout::newMTLArgumentEncoder(mvk::SPIRVT
 }
 
 MVKDescriptorSetLayout::MVKDescriptorSetLayout(MVKDevice* device,
-                                               const VkDescriptorSetLayoutCreateInfo* pCreateInfo) : MVKVulkanAPIDeviceObject(device) {
+											   const VkDescriptorSetLayoutCreateInfo* pCreateInfo) : MVKVulkanAPIDeviceObject(device), _applyToStage{} {
 
 	uint32_t bindCnt = pCreateInfo->bindingCount;
 	const auto* pBindingFlags = getBindingFlags(pCreateInfo);

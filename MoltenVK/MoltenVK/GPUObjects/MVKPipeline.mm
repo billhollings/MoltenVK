@@ -188,13 +188,15 @@ void MVKPipeline::addMTLArgumentEncoders(MVKPipelineLayout* layout, SPIRVToMSLCo
 	}
 }
 
-void MVKPipeline::bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets) {
+void MVKPipeline::bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets,
+										   MVKShaderStage stage) {
 	size_t dsCnt = _mtlArgumentEncoders.size();
 	for (uint32_t dsIdx = 0; dsIdx < dsCnt; dsIdx++) {
 		MVKDescriptorSet* descSet = descriptorSets[dsIdx];
-		id<MTLBuffer> mtlArgBuff = descSet ? descSet->getMetalArgumentBuffer() : nil;
-		NSUInteger descSetOffset = descSet ? descSet->getMetalArgumentBufferOffset() : 0;
-		[_mtlArgumentEncoders[dsIdx] setArgumentBuffer: mtlArgBuff offset: descSetOffset];
+		if (descSet && descSet->isUsedByShaderStage(stage)) {
+			[_mtlArgumentEncoders[dsIdx] setArgumentBuffer: descSet->getMetalArgumentBuffer()
+													offset: descSet->getMetalArgumentBufferOffset()];
+		}
 	}
 }
 

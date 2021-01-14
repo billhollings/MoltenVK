@@ -627,7 +627,12 @@ void MVKGraphicsResourcesCommandEncoderState::encodeBindings(MVKShaderStage stag
                                                              std::function<void(MVKCommandEncoder*, MVKMTLBufferBinding&, const MVKArrayRef<uint32_t>&)> bindImplicitBuffer,
                                                              std::function<void(MVKCommandEncoder*, MVKMTLTextureBinding&)> bindTexture,
                                                              std::function<void(MVKCommandEncoder*, MVKMTLSamplerStateBinding&)> bindSampler) {
-    auto& shaderStage = _shaderStageResourceBindings[stage];
+
+	MVKPipeline* pipeline = _cmdEncoder->_graphicsPipelineState.getPipeline();
+	lock_guard<mutex> lock(pipeline->_mtlArgumentEncodingLock);
+	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents(), stage);
+
+	auto& shaderStage = _shaderStageResourceBindings[stage];
     encodeBinding<MVKMTLBufferBinding>(shaderStage.bufferBindings, shaderStage.areBufferBindingsDirty, bindBuffer);
 
     if (shaderStage.swizzleBufferBinding.isDirty) {
@@ -659,6 +664,8 @@ void MVKGraphicsResourcesCommandEncoderState::encodeBindings(MVKShaderStage stag
 
     encodeBinding<MVKMTLTextureBinding>(shaderStage.textureBindings, shaderStage.areTextureBindingsDirty, bindTexture);
     encodeBinding<MVKMTLSamplerStateBinding>(shaderStage.samplerStateBindings, shaderStage.areSamplerStateBindingsDirty, bindSampler);
+
+	pipeline->unbindMetalArgumentBuffers();
 }
 
 void MVKGraphicsResourcesCommandEncoderState::offsetZeroDivisorVertexBuffers(MVKGraphicsStage stage,
@@ -700,9 +707,6 @@ void MVKGraphicsResourcesCommandEncoderState::encodeImpl(uint32_t stage) {
 	MVKGraphicsPipeline* pipeline = (MVKGraphicsPipeline*)_cmdEncoder->_graphicsPipelineState.getPipeline();
     bool fullImageViewSwizzle = pipeline->fullImageViewSwizzle() || _cmdEncoder->getDevice()->_pMetalFeatures->nativeTextureSwizzle;
     bool forTessellation = pipeline->isTessellationPipeline();
-
-	lock_guard<mutex> lock(pipeline->_mtlArgumentEncodingLock);
-	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents());
 
 	if (stage == kMVKGraphicsStageVertex) {
         encodeBindings(kMVKShaderStageVertex, "vertex", fullImageViewSwizzle,
@@ -861,8 +865,6 @@ void MVKGraphicsResourcesCommandEncoderState::encodeImpl(uint32_t stage) {
                                                                           atIndex: b.index];
                        });
     }
-
-	pipeline->unbindMetalArgumentBuffers();
 }
 
 void MVKGraphicsResourcesCommandEncoderState::resetImpl() {
@@ -918,7 +920,7 @@ void MVKComputeResourcesCommandEncoderState::encodeImpl(uint32_t) {
 	bool fullImageViewSwizzle = pipeline ? pipeline->fullImageViewSwizzle() : false;
 
 	lock_guard<mutex> lock(pipeline->_mtlArgumentEncodingLock);
-	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents());
+	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents(), kMVKShaderStageCompute);
 
     if (_resourceBindings.swizzleBufferBinding.isDirty) {
 		for (auto& b : _resourceBindings.textureBindings) {

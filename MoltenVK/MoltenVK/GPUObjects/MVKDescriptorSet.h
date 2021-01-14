@@ -102,6 +102,7 @@ protected:
 	MVKShaderResourceBinding _mtlResourceCounts;
 	NSUInteger _argumentBufferSize;
 	uint32_t _descriptorCount;
+	bool _applyToStage[kMVKShaderStageCount];
 	bool _isPushDescriptorLayout;
 };
 
@@ -148,6 +149,9 @@ public:
 
 	/** Returns the offset into the Metal argument buffer to which resources are written. */
 	inline NSUInteger getMetalArgumentBufferOffset() { return _mtlArgumentBufferOffset; }
+
+	/** Returns whether this descriptor set is used by the shader stage. */
+	inline bool isUsedByShaderStage(MVKShaderStage stage) {return _layout->_applyToStage[stage]; }
 
 	MVKDescriptorSet(MVKDescriptorPool* pool);
 
