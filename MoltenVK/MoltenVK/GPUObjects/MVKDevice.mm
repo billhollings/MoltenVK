@@ -3640,6 +3640,7 @@ id<MTLSamplerState> MVKDevice::getDefaultMTLSamplerState() {
 		if ( !_defaultMTLSamplerState ) {
 			@autoreleasepool {
 				MTLSamplerDescriptor* mtlSampDesc = [[MTLSamplerDescriptor new] autorelease];
+				mtlSampDesc.supportArgumentBuffers = _pMetalFeatures->argumentBuffers;
 				_defaultMTLSamplerState = [getMTLDevice() newSamplerStateWithDescriptor: mtlSampDesc];	// retained
 			}
 		}
