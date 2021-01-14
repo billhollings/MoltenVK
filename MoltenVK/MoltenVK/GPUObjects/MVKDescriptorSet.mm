@@ -54,8 +54,7 @@ void MVKDescriptorSetLayout::bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
 	}
 
 	for (auto& dslBind : _bindings) {
-		dslBind.bind(cmdEncoder, pipelineBindPoint, descSetIndex, descSet,
-					 dslMTLRezIdxOffsets, dynamicOffsets, dynamicOffsetIndex);
+		dslBind.bind(cmdEncoder, descSetIndex, descSet, dslMTLRezIdxOffsets, dynamicOffsets, dynamicOffsetIndex);
 	}
 }
 

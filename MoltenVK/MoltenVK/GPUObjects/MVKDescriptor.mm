@@ -147,17 +147,6 @@ MTLTextureType mvkMTLTextureTypeFromMSLTextureType(MSLTextureType mslTextureType
 	}
 }
 
-MVKPipelineBindPoint mvkMVKPipelineBindPointFromVkPipelineBindPoint(VkPipelineBindPoint vkPipelineBindPoint) {
-	switch (vkPipelineBindPoint) {
-		case VK_PIPELINE_BIND_POINT_COMPUTE:
-			return kMVKPipelineBindPointCompute;
-
-		case VK_PIPELINE_BIND_POINT_GRAPHICS:
-		default:
-			return kMVKPipelineBindPointGraphics;
-	}
-}
-
 
 #pragma mark -
 #pragma mark MVKDescriptorSetLayoutBinding
@@ -183,7 +172,6 @@ MVKSampler* MVKDescriptorSetLayoutBinding::getImmutableSampler(uint32_t index) {
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKDescriptorSetLayoutBinding::bind(MVKCommandEncoder* cmdEncoder,
-										 VkPipelineBindPoint pipelineBindPoint,
 										 uint32_t descSetIndex,
 										 MVKDescriptorSet* descSet,
 										 MVKShaderResourceBinding& dslMTLRezIdxOffsets,
@@ -198,8 +186,8 @@ void MVKDescriptorSetLayoutBinding::bind(MVKCommandEncoder* cmdEncoder,
     for (uint32_t descIdx = 0; descIdx < descCnt; descIdx++) {
 		MVKDescriptor* mvkDesc = descSet->getDescriptor(getBinding(), descIdx);
 		if (mvkDesc->getDescriptorType() == descType) {
-			mvkDesc->bind(cmdEncoder, pipelineBindPoint, descSetIndex, descIdx, this,
-						  _applyToStage, mtlIdxs, dynamicOffsets, dynamicOffsetIndex);
+			mvkDesc->bind(cmdEncoder, descSetIndex, descIdx, this, _applyToStage,
+						  mtlIdxs, dynamicOffsets, dynamicOffsetIndex);
 		}
     }
 }
@@ -596,8 +584,7 @@ MVKDescriptorSetLayoutBinding::MVKDescriptorSetLayoutBinding(MVKDevice* device,
 	_info.pImmutableSamplers = nullptr;     // Remove dangling pointer
 
 	for (uint32_t stage = kMVKShaderStageVertex; stage < kMVKShaderStageCount; stage++) {
-        // Determine if this binding is used by this shader stage, and
-		// if this binding is used by the shader, set the Metal resource index
+        // Determine if this binding is used by this shader stage.
         _applyToStage[stage] = mvkAreAllFlagsEnabled(pBinding->stageFlags, mvkVkShaderStageFlagBitsFromMVKShaderStage(MVKShaderStage(stage)));
 		initMetalResourceIndexOffsets(&_mtlResourceIndexOffsets.stages[stage],
 									  &layout->_mtlResourceCounts.stages[stage],
@@ -767,7 +754,6 @@ MTLResourceUsage MVKDescriptor::getMTLResourceUsage() {
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
-							   VkPipelineBindPoint pipelineBindPoint,
 							   uint32_t descSetIndex,
 							   uint32_t descriptorIndex,
 							   MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -785,7 +771,6 @@ void MVKBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 	}
 
 	MVKMTLBufferBinding bb;
-	bb.pipelineBindPoint = mvkMVKPipelineBindPointFromVkPipelineBindPoint(pipelineBindPoint);
 	bb.descriptorSetIndex = descSetIndex;
 	bb.mtlUsage = getMTLResourceUsage();
 	bb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
@@ -856,7 +841,6 @@ void MVKBufferDescriptor::reset() {
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKInlineUniformBlockDescriptor::bind(MVKCommandEncoder* cmdEncoder,
-										   VkPipelineBindPoint pipelineBindPoint,
 										   uint32_t descSetIndex,
 										   uint32_t descriptorIndex,
 										   MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -866,7 +850,6 @@ void MVKInlineUniformBlockDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 										   uint32_t& dynamicOffsetIndex) {
 
 	MVKMTLBufferBinding bb;
-	bb.pipelineBindPoint = mvkMVKPipelineBindPointFromVkPipelineBindPoint(pipelineBindPoint);
 	bb.descriptorSetIndex = descSetIndex;
 	bb.mtlUsage = getMTLResourceUsage();
 	bb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
@@ -974,7 +957,6 @@ bool MVKInlineUniformBlockDescriptor::shouldEmbedInlineBlocksInMetalAgumentBuffe
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKImageDescriptor::bind(MVKCommandEncoder* cmdEncoder,
-							  VkPipelineBindPoint pipelineBindPoint,
 							  uint32_t descSetIndex,
 							  uint32_t descriptorIndex,
 							  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -983,13 +965,11 @@ void MVKImageDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 							  MVKArrayRef<uint32_t> dynamicOffsets,
 							  uint32_t& dynamicOffsetIndex) {
 	MVKMTLTextureBinding tb;
-	tb.pipelineBindPoint = mvkMVKPipelineBindPointFromVkPipelineBindPoint(pipelineBindPoint);
 	tb.descriptorSetIndex = descSetIndex;
 	tb.mtlUsage = getMTLResourceUsage();
 	tb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
 
 	MVKMTLBufferBinding bb;
-	bb.pipelineBindPoint = tb.pipelineBindPoint;
 	bb.descriptorSetIndex = tb.descriptorSetIndex;
 	bb.mtlUsage = tb.mtlUsage;
 	bb.mtlStages = tb.mtlStages;
@@ -1082,7 +1062,6 @@ void MVKImageDescriptor::reset() {
 // Metal validation requires each sampler in an array of samplers to be populated,
 // even if not used, so populate a default if one hasn't been set.
 void MVKSamplerDescriptorMixin::bind(MVKCommandEncoder* cmdEncoder,
-									 VkPipelineBindPoint pipelineBindPoint,
 									 uint32_t descSetIndex,
 									 uint32_t descriptorIndex,
 									 MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -1091,7 +1070,6 @@ void MVKSamplerDescriptorMixin::bind(MVKCommandEncoder* cmdEncoder,
 									 MVKArrayRef<uint32_t> dynamicOffsets,
 									 uint32_t& dynamicOffsetIndex) {
 	MVKMTLSamplerStateBinding sb;
-	sb.pipelineBindPoint = mvkMVKPipelineBindPointFromVkPipelineBindPoint(pipelineBindPoint);
 	sb.descriptorSetIndex = descSetIndex;
 
 	sb.mtlSamplerState = (_mvkSampler
@@ -1166,7 +1144,6 @@ void MVKSamplerDescriptorMixin::reset() {
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKSamplerDescriptor::bind(MVKCommandEncoder* cmdEncoder,
-								VkPipelineBindPoint pipelineBindPoint,
 								uint32_t descSetIndex,
 								uint32_t descriptorIndex,
 								MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -1174,8 +1151,8 @@ void MVKSamplerDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 								MVKShaderResourceBinding& mtlIndexes,
 								MVKArrayRef<uint32_t> dynamicOffsets,
 								uint32_t& dynamicOffsetIndex) {
-	MVKSamplerDescriptorMixin::bind(cmdEncoder, pipelineBindPoint, descSetIndex, descriptorIndex,
-									mvkDSLBind, stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
+	MVKSamplerDescriptorMixin::bind(cmdEncoder, descSetIndex, descriptorIndex, mvkDSLBind,
+									stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
 }
 
 void MVKSamplerDescriptor::write(MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -1211,7 +1188,6 @@ void MVKSamplerDescriptor::reset() {
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKCombinedImageSamplerDescriptor::bind(MVKCommandEncoder* cmdEncoder,
-											 VkPipelineBindPoint pipelineBindPoint,
 											 uint32_t descSetIndex,
 											 uint32_t descriptorIndex,
 											 MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -1219,10 +1195,10 @@ void MVKCombinedImageSamplerDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 											 MVKShaderResourceBinding& mtlIndexes,
 											 MVKArrayRef<uint32_t> dynamicOffsets,
 											 uint32_t& dynamicOffsetIndex) {
-	MVKImageDescriptor::bind(cmdEncoder, pipelineBindPoint, descSetIndex, descriptorIndex,
-									mvkDSLBind, stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
-	MVKSamplerDescriptorMixin::bind(cmdEncoder, pipelineBindPoint, descSetIndex, descriptorIndex,
-									mvkDSLBind, stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
+	MVKImageDescriptor::bind(cmdEncoder, descSetIndex, descriptorIndex, mvkDSLBind,
+							 stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
+	MVKSamplerDescriptorMixin::bind(cmdEncoder, descSetIndex, descriptorIndex, mvkDSLBind,
+									stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
 }
 
 void MVKCombinedImageSamplerDescriptor::write(MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -1265,7 +1241,6 @@ void MVKCombinedImageSamplerDescriptor::reset() {
 
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKTexelBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
-									VkPipelineBindPoint pipelineBindPoint,
 									uint32_t descSetIndex,
 									uint32_t descriptorIndex,
 									MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -1274,13 +1249,11 @@ void MVKTexelBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 									MVKArrayRef<uint32_t> dynamicOffsets,
 									uint32_t& dynamicOffsetIndex) {
 	MVKMTLTextureBinding tb;
-	tb.pipelineBindPoint = mvkMVKPipelineBindPointFromVkPipelineBindPoint(pipelineBindPoint);
 	tb.descriptorSetIndex = descSetIndex;
 	tb.mtlUsage = getMTLResourceUsage();
 	tb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
 
 	MVKMTLBufferBinding bb;
-	bb.pipelineBindPoint = tb.pipelineBindPoint;
 	bb.descriptorSetIndex = tb.descriptorSetIndex;
 	bb.mtlUsage = tb.mtlUsage;
 	bb.mtlStages = tb.mtlStages;

@@ -115,7 +115,7 @@ public:
     void setPipeline(MVKPipeline* pipeline);
 
     /** Returns the currently bound pipeline. */
-    MVKPipeline* getPipeline();
+	MVKPipeline* getPipeline() { return _pipeline; }
 
     /** Constructs this instance for the specified command encoder. */
     MVKPipelineCommandEncoderState(MVKCommandEncoder* cmdEncoder)
@@ -438,9 +438,9 @@ protected:
 	void encodeToArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding);
 
 	// Encode the argument buffer usage for the MTLResource.
-	virtual void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
-												   MTLResourceUsage mtlUsage,
-												   MTLRenderStages mtlStages) = 0;
+	void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
+										   MTLResourceUsage mtlUsage,
+										   MTLRenderStages mtlStages);
 
 	// Updates a value at the given index in the given vector, resizing if needed.
 	template<class V>
@@ -450,6 +450,7 @@ protected:
 	}
 
 	void assertMissingSwizzles(bool needsSwizzle, const char* stageName, const MVKArrayRef<MVKMTLTextureBinding>& texBindings);
+	virtual MVKPipeline* getPipeline() = 0;
 
 	template<size_t N>
 	struct ResourceBindings {
@@ -558,9 +559,7 @@ protected:
     void encodeImpl(uint32_t stage) override;
     void resetImpl() override;
     void markDirty() override;
-	void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
-										   MTLResourceUsage mtlUsage,
-										   MTLRenderStages mtlStages) override;
+	MVKPipeline* getPipeline() override;
 
     ResourceBindings<8> _shaderStageResourceBindings[4];
 };
@@ -599,9 +598,7 @@ public:
 protected:
     void encodeImpl(uint32_t) override;
     void resetImpl() override;
-	void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
-										   MTLResourceUsage mtlUsage,
-										   MTLRenderStages mtlStages) override;
+	MVKPipeline* getPipeline() override;
 
 	ResourceBindings<4> _resourceBindings;
 };

@@ -302,12 +302,6 @@ public:
     /** Binds a pipeline to a bind point. */
     void bindPipeline(VkPipelineBindPoint pipelineBindPoint, MVKPipeline* pipeline);
 
-	/** Returns the pipeline bound to a bind point. */
-	MVKPipeline* getPipeline(MVKPipelineBindPoint pipelineBindPoint);
-
-	/** Returns the pipeline bound to a bind point. */
-	MVKPipeline* getPipeline(VkPipelineBindPoint pipelineBindPoint);
-
 	/** Binds the descriptor set to the index at the bind point. */
 	void bindDescriptorSet(VkPipelineBindPoint pipelineBindPoint, MVKDescriptorSet* descSet, uint32_t descSetIndex);
 

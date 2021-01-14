@@ -42,8 +42,6 @@ void MVKPipelineCommandEncoderState::setPipeline(MVKPipeline* pipeline) {
     markDirty();
 }
 
-MVKPipeline* MVKPipelineCommandEncoderState::getPipeline() { return _pipeline; }
-
 void MVKPipelineCommandEncoderState::encodeImpl(uint32_t stage) {
     if (_pipeline) {
 		_pipeline->encode(_cmdEncoder, stage);
@@ -518,21 +516,41 @@ void MVKResourcesCommandEncoderState::assertMissingSwizzles(bool needsSwizzle, c
 #pragma mark MVKResourcesCommandEncoderState
 
 void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLBufferBinding& bufferBinding) {
-	_cmdEncoder->getPipeline(bufferBinding.pipelineBindPoint)->writeToMetalArgumentBuffer(bufferBinding);
+	getPipeline()->writeToMetalArgumentBuffer(bufferBinding);
 	if ( !bufferBinding.isInline ) {
 		encodeArgumentBufferResourceUsage(bufferBinding.mtlResource, bufferBinding.mtlUsage, bufferBinding.mtlStages);
 	}
 }
 
 void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLTextureBinding& textureBinding) {
-	_cmdEncoder->getPipeline(textureBinding.pipelineBindPoint)->writeToMetalArgumentBuffer(textureBinding);
+	getPipeline()->writeToMetalArgumentBuffer(textureBinding);
 	encodeArgumentBufferResourceUsage(textureBinding.mtlResource, textureBinding.mtlUsage, textureBinding.mtlStages);
 }
 
 void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding) {
-	_cmdEncoder->getPipeline(samplerBinding.pipelineBindPoint)->writeToMetalArgumentBuffer(samplerBinding);
+	getPipeline()->writeToMetalArgumentBuffer(samplerBinding);
 }
 
+// The presence of a MTLRenderEncoder indicates that we are in a graphics render pass,
+// and we let it know about the resource. Otherwise, we must be in a compute pass,
+// so we retrieve the compute encoder and let it know about the resource.
+void MVKResourcesCommandEncoderState::encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
+																		MTLResourceUsage mtlUsage,
+																		MTLRenderStages mtlStages) {
+	auto* mtlRendEnc = _cmdEncoder->_mtlRenderEncoder;
+	if (mtlRendEnc) {
+		if (mtlStages) {
+			if ([mtlRendEnc respondsToSelector: @selector(useResource:usage:stages:)]) {
+				[mtlRendEnc useResource: mtlResource usage: mtlUsage stages: mtlStages];
+			} else {
+				[mtlRendEnc useResource: mtlResource usage: mtlUsage];
+			}
+		}
+	} else {
+		auto* mtlCompEnc = _cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch);
+		[mtlCompEnc useResource: mtlResource usage: mtlUsage];
+	}
+}
 
 // Mark everything as dirty
 void MVKResourcesCommandEncoderState::markDirty() {
@@ -847,24 +865,15 @@ void MVKGraphicsResourcesCommandEncoderState::encodeImpl(uint32_t stage) {
 	pipeline->unbindMetalArgumentBuffers();
 }
 
-void MVKGraphicsResourcesCommandEncoderState::encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
-																				MTLResourceUsage mtlUsage,
-																				MTLRenderStages mtlStages) {
-	if (mtlStages) {
-		auto* mtlEnc = _cmdEncoder->_mtlRenderEncoder;
-		if ([mtlEnc respondsToSelector: @selector(useResource:usage:stages:)]) {
-			[mtlEnc useResource: mtlResource usage: mtlUsage stages: mtlStages];
-		} else {
-			[mtlEnc useResource: mtlResource usage: mtlUsage];
-		}
-	}
-}
-
 void MVKGraphicsResourcesCommandEncoderState::resetImpl() {
 	MVKResourcesCommandEncoderState::resetImpl();
 	for (uint32_t i = kMVKShaderStageVertex; i <= kMVKShaderStageFragment; i++) {
 		_shaderStageResourceBindings[i].reset();
 	}
+}
+
+MVKPipeline* MVKGraphicsResourcesCommandEncoderState::getPipeline() {
+	return _cmdEncoder->_graphicsPipelineState.getPipeline();
 }
 
 
@@ -966,16 +975,13 @@ void MVKComputeResourcesCommandEncoderState::encodeImpl(uint32_t) {
 	pipeline->unbindMetalArgumentBuffers();
 }
 
-void MVKComputeResourcesCommandEncoderState::encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
-																			   MTLResourceUsage mtlUsage,
-																			   MTLRenderStages mtlStages) {
-	auto* mtlEnc = _cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch);
-	[mtlEnc useResource: mtlResource usage: mtlUsage];
-}
-
 void MVKComputeResourcesCommandEncoderState::resetImpl() {
 	MVKResourcesCommandEncoderState::resetImpl();
 	_resourceBindings.reset();
+}
+
+MVKPipeline* MVKComputeResourcesCommandEncoderState::getPipeline() {
+	return _cmdEncoder->_computePipelineState.getPipeline();
 }
 
 

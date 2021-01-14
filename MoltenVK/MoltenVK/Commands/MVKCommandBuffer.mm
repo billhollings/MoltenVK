@@ -422,18 +422,6 @@ void MVKCommandEncoder::bindPipeline(VkPipelineBindPoint pipelineBindPoint, MVKP
     }
 }
 
-MVKPipeline* MVKCommandEncoder::getPipeline(MVKPipelineBindPoint pipelineBindPoint) {
-	switch (pipelineBindPoint) {
-		case kMVKPipelineBindPointGraphics:		return _graphicsPipelineState.getPipeline();
-		case kMVKPipelineBindPointCompute:		return _computePipelineState.getPipeline();
-		default:								return nullptr;
-	}
-}
-
-MVKPipeline* MVKCommandEncoder::getPipeline(VkPipelineBindPoint pipelineBindPoint) {
-	return getPipeline(mvkMVKPipelineBindPointFromVkPipelineBindPoint(pipelineBindPoint));
-}
-
 void MVKCommandEncoder::bindDescriptorSet(VkPipelineBindPoint pipelineBindPoint,
 										  MVKDescriptorSet* descSet,
 										  uint32_t descSetIndex) {

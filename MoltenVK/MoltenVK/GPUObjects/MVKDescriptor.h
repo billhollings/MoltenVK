@@ -79,9 +79,6 @@ MTLRenderStages mvkMTLRenderStagesFromMVKShaderStages(bool stageEnabled[]);
 /** Returns the MTLTextureType corresponding to the shader conversion MSLTextureType. */
 MTLTextureType mvkMTLTextureTypeFromMSLTextureType(SPIRV_CROSS_NAMESPACE::MSLTextureType mslTextureType);
 
-/** Returns the MVKPipelineBindingPoint corresponding to the Vulkan binding point. */
-MVKPipelineBindPoint mvkMVKPipelineBindPointFromVkPipelineBindPoint(VkPipelineBindPoint vkPipelineBindPoint);
-
 
 #pragma mark -
 #pragma mark MVKDescriptorSetLayoutBinding
@@ -120,7 +117,6 @@ public:
 
 	/** Encodes the descriptors in the descriptor set that are specified by this layout, */
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  MVKDescriptorSet* descSet,
 			  MVKShaderResourceBinding& dslMTLRezIdxOffsets,
@@ -203,7 +199,6 @@ public:
 
 	/** Encodes this descriptor (based on its layout binding index) on the the command encoder. */
 	virtual void bind(MVKCommandEncoder* cmdEncoder,
-					  VkPipelineBindPoint pipelineBindPoint,
 					  uint32_t descSetIndex,
 					  uint32_t descriptorIndex,
 					  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -264,7 +259,6 @@ class MVKBufferDescriptor : public MVKDescriptor {
 
 public:
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  uint32_t descriptorIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -343,7 +337,6 @@ public:
 	VkDescriptorType getDescriptorType() override { return VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT; }
 
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  uint32_t descriptorIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -393,7 +386,6 @@ class MVKImageDescriptor : public MVKDescriptor {
 
 public:
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  uint32_t descriptorIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -466,7 +458,6 @@ class MVKSamplerDescriptorMixin {
 
 protected:
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  uint32_t descriptorIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -515,7 +506,6 @@ public:
 	VkDescriptorType getDescriptorType() override { return VK_DESCRIPTOR_TYPE_SAMPLER; }
 
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  uint32_t descriptorIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -556,7 +546,6 @@ public:
 	VkDescriptorType getDescriptorType() override { return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; }
 
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  uint32_t descriptorIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
@@ -597,7 +586,6 @@ class MVKTexelBufferDescriptor : public MVKDescriptor {
 
 public:
 	void bind(MVKCommandEncoder* cmdEncoder,
-			  VkPipelineBindPoint pipelineBindPoint,
 			  uint32_t descSetIndex,
 			  uint32_t descriptorIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
