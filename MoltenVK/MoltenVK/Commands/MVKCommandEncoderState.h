@@ -359,8 +359,7 @@ public:
 	}
 
     MVKResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder) :
-		MVKCommandEncoderState(cmdEncoder),
-		_boundDescriptorSets(kMVKMaxDescriptorSetCount) {}
+		MVKCommandEncoderState(cmdEncoder), _boundDescriptorSets{} {}
 
 protected:
 
@@ -437,10 +436,20 @@ protected:
 	// Encodes the MTLSamplerState in the binding to the argument buffer.
 	void encodeToArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding);
 
+	// Returns whether the binding can be found in the bound descriptor sets.
+	// In the case where a pipeline layout does not completely override all the
+	// bindings of a pipeline layout previously bound, there may be outstanding
+	// bindings that are not used by the new pipeline layout.
+	template<class T>
+	bool hasArgumentBufferBinding(const T& b) {
+		return (b.descriptorSetIndex < kMVKMaxDescriptorSetCount &&
+				_boundDescriptorSets[b.descriptorSetIndex] &&
+				_boundDescriptorSets[b.descriptorSetIndex]->hasArgumentBufferBinding(b));
+	}
+
 	// Encode the argument buffer usage for the MTLResource.
-	void encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
-										   MTLResourceUsage mtlUsage,
-										   MTLRenderStages mtlStages);
+	template<class T>
+	void encodeArgumentBufferResourceUsage(const T& b);
 
 	// Updates a value at the given index in the given vector, resizing if needed.
 	template<class V>
@@ -491,7 +500,7 @@ protected:
 	void resetImpl() override;
 	void markDirty() override;
 
-	MVKSmallVector<MVKDescriptorSet*, kMVKMaxDescriptorSetCount> _boundDescriptorSets;
+	MVKDescriptorSet* _boundDescriptorSets[kMVKMaxDescriptorSetCount];
 };
 
 

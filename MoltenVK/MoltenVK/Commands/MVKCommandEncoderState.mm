@@ -516,39 +516,42 @@ void MVKResourcesCommandEncoderState::assertMissingSwizzles(bool needsSwizzle, c
 #pragma mark MVKResourcesCommandEncoderState
 
 void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLBufferBinding& bufferBinding) {
-	getPipeline()->writeToMetalArgumentBuffer(bufferBinding);
-	if ( !bufferBinding.isInline ) {
-		encodeArgumentBufferResourceUsage(bufferBinding.mtlResource, bufferBinding.mtlUsage, bufferBinding.mtlStages);
+	if (hasArgumentBufferBinding(bufferBinding)) {
+		getPipeline()->writeToMetalArgumentBuffer(bufferBinding);
+		if ( !bufferBinding.isInline ) { encodeArgumentBufferResourceUsage(bufferBinding); }
 	}
 }
 
 void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLTextureBinding& textureBinding) {
-	getPipeline()->writeToMetalArgumentBuffer(textureBinding);
-	encodeArgumentBufferResourceUsage(textureBinding.mtlResource, textureBinding.mtlUsage, textureBinding.mtlStages);
+	if (hasArgumentBufferBinding(textureBinding)) {
+		getPipeline()->writeToMetalArgumentBuffer(textureBinding);
+		encodeArgumentBufferResourceUsage(textureBinding);
+	}
 }
 
 void MVKResourcesCommandEncoderState::encodeToArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding) {
-	getPipeline()->writeToMetalArgumentBuffer(samplerBinding);
+	if (hasArgumentBufferBinding(samplerBinding)) {
+		getPipeline()->writeToMetalArgumentBuffer(samplerBinding);
+	}
 }
 
 // The presence of a MTLRenderEncoder indicates that we are in a graphics render pass,
 // and we let it know about the resource. Otherwise, we must be in a compute pass,
 // so we retrieve the compute encoder and let it know about the resource.
-void MVKResourcesCommandEncoderState::encodeArgumentBufferResourceUsage(id<MTLResource> mtlResource,
-																		MTLResourceUsage mtlUsage,
-																		MTLRenderStages mtlStages) {
+template<class T>
+void MVKResourcesCommandEncoderState::encodeArgumentBufferResourceUsage(const T& b) {
 	auto* mtlRendEnc = _cmdEncoder->_mtlRenderEncoder;
 	if (mtlRendEnc) {
-		if (mtlStages) {
+		if (b.mtlStages) {
 			if ([mtlRendEnc respondsToSelector: @selector(useResource:usage:stages:)]) {
-				[mtlRendEnc useResource: mtlResource usage: mtlUsage stages: mtlStages];
+				[mtlRendEnc useResource: b.mtlResource usage: b.mtlUsage stages: b.mtlStages];
 			} else {
-				[mtlRendEnc useResource: mtlResource usage: mtlUsage];
+				[mtlRendEnc useResource: b.mtlResource usage: b.mtlUsage];
 			}
 		}
 	} else {
 		auto* mtlCompEnc = _cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch);
-		[mtlCompEnc useResource: mtlResource usage: mtlUsage];
+		[mtlCompEnc useResource: b.mtlResource usage: b.mtlUsage];
 	}
 }
 
@@ -558,8 +561,7 @@ void MVKResourcesCommandEncoderState::markDirty() {
 }
 
 void MVKResourcesCommandEncoderState::resetImpl() {
-	size_t dsCnt = _boundDescriptorSets.size();
-	for (uint32_t dsIdx = 0; dsIdx < dsCnt; dsIdx++) {
+	for (uint32_t dsIdx = 0; dsIdx < kMVKMaxDescriptorSetCount; dsIdx++) {
 		_boundDescriptorSets[dsIdx] = nullptr;
 	}
 }
@@ -630,7 +632,7 @@ void MVKGraphicsResourcesCommandEncoderState::encodeBindings(MVKShaderStage stag
 
 	MVKPipeline* pipeline = _cmdEncoder->_graphicsPipelineState.getPipeline();
 	lock_guard<mutex> lock(pipeline->_mtlArgumentEncodingLock);
-	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents(), stage);
+	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets, stage);
 
 	auto& shaderStage = _shaderStageResourceBindings[stage];
     encodeBinding<MVKMTLBufferBinding>(shaderStage.bufferBindings, shaderStage.areBufferBindingsDirty, bindBuffer);
@@ -920,7 +922,7 @@ void MVKComputeResourcesCommandEncoderState::encodeImpl(uint32_t) {
 	bool fullImageViewSwizzle = pipeline ? pipeline->fullImageViewSwizzle() : false;
 
 	lock_guard<mutex> lock(pipeline->_mtlArgumentEncodingLock);
-	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets.contents(), kMVKShaderStageCompute);
+	pipeline->bindMetalArgumentBuffers(_boundDescriptorSets, kMVKShaderStageCompute);
 
     if (_resourceBindings.swizzleBufferBinding.isDirty) {
 		for (auto& b : _resourceBindings.textureBindings) {

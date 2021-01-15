@@ -188,12 +188,11 @@ void MVKPipeline::addMTLArgumentEncoders(MVKPipelineLayout* layout, SPIRVToMSLCo
 	}
 }
 
-void MVKPipeline::bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets,
-										   MVKShaderStage stage) {
+void MVKPipeline::bindMetalArgumentBuffers(MVKDescriptorSet* descriptorSets[], MVKShaderStage stage) {
 	size_t dsCnt = _mtlArgumentEncoders.size();
 	for (uint32_t dsIdx = 0; dsIdx < dsCnt; dsIdx++) {
 		MVKDescriptorSet* descSet = descriptorSets[dsIdx];
-		if (descSet && descSet->isUsedByShaderStage(stage)) {
+		if (descSet) {
 			[_mtlArgumentEncoders[dsIdx] setArgumentBuffer: descSet->getMetalArgumentBuffer()
 													offset: descSet->getMetalArgumentBufferOffset()];
 		}
@@ -206,29 +205,32 @@ void MVKPipeline::unbindMetalArgumentBuffers() {
 
 void MVKPipeline::writeToMetalArgumentBuffer(MVKMTLBufferBinding& bufferBinding) {
 	if (bufferBinding.mtlBuffer) {
+		auto mtlArgEnc = getMTLArgumentEncoder(bufferBinding.descriptorSetIndex);
 		if (bufferBinding.isInline) {
-			uint8_t* pDstData = (uint8_t*)[_mtlArgumentEncoders[bufferBinding.descriptorSetIndex] constantDataAtIndex: bufferBinding.index];
+			uint8_t* pDstData = (uint8_t*)[mtlArgEnc constantDataAtIndex: bufferBinding.index];
 			if (pDstData) { memcpy(pDstData + bufferBinding.offset, bufferBinding.mtlBytes, bufferBinding.size); }
 		} else {
-			[_mtlArgumentEncoders[bufferBinding.descriptorSetIndex] setBuffer: bufferBinding.mtlBuffer
-																	   offset: bufferBinding.offset
-																	  atIndex: bufferBinding.index];
+			[mtlArgEnc setBuffer: bufferBinding.mtlBuffer offset: bufferBinding.offset atIndex: bufferBinding.index];
 		}
 	}
 }
 
 void MVKPipeline::writeToMetalArgumentBuffer(MVKMTLTextureBinding& textureBinding) {
 	if (textureBinding.mtlTexture) {
-		[_mtlArgumentEncoders[textureBinding.descriptorSetIndex] setTexture: textureBinding.mtlTexture
-																	atIndex: textureBinding.index];
+		auto mtlArgEnc = getMTLArgumentEncoder(textureBinding.descriptorSetIndex);
+		[mtlArgEnc setTexture: textureBinding.mtlTexture atIndex: textureBinding.index];
 	}
 }
 
 void MVKPipeline::writeToMetalArgumentBuffer(MVKMTLSamplerStateBinding& samplerBinding) {
 	// Metal requires sampler, so get default if not provided.
 	id<MTLSamplerState> mtlSamplerState = samplerBinding.mtlSamplerState ? samplerBinding.mtlSamplerState : getDevice()->getDefaultMTLSamplerState();
-	[_mtlArgumentEncoders[samplerBinding.descriptorSetIndex] setSamplerState: mtlSamplerState
-																	 atIndex: samplerBinding.index];
+	auto mtlArgEnc = getMTLArgumentEncoder(samplerBinding.descriptorSetIndex);
+	[mtlArgEnc setSamplerState: mtlSamplerState atIndex: samplerBinding.index];
+}
+
+id<MTLArgumentEncoder> MVKPipeline::getMTLArgumentEncoder(uint32_t descSetIdx) {
+	return descSetIdx < _mtlArgumentEncoders.size() ? _mtlArgumentEncoders[descSetIdx] : nil;
 }
 
 MVKPipeline::MVKPipeline(MVKDevice* device, MVKPipelineCache* pipelineCache, MVKPipelineLayout* layout, MVKPipeline* parent) :

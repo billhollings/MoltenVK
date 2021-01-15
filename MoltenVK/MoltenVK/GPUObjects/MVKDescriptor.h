@@ -239,6 +239,15 @@ public:
 	/** Sets the binding layout. */
 	virtual void setLayout(MVKDescriptorSetLayoutBinding* dslBinding, uint32_t index) {}
 
+	/** Returns whether this descriptor supports the binding. */
+	virtual bool supportsBinding(const MVKMTLBufferBinding& bufferBinding) { return false; }
+
+	/** Returns whether this descriptor supports the binding. */
+	virtual bool supportsBinding(const MVKMTLTextureBinding& textureBinding) { return false; }
+
+	/** Returns whether this descriptor supports the binding. */
+	virtual bool supportsBinding(const MVKMTLSamplerStateBinding& samplerBinding) { return false; }
+
 	/** Resets any internal content. */
 	virtual void reset() {}
 
@@ -279,6 +288,8 @@ public:
 			  VkDescriptorBufferInfo* pBufferInfo,
 			  VkBufferView* pTexelBufferView,
 			  VkWriteDescriptorSetInlineUniformBlockEXT* inlineUniformBlock) override;
+
+	bool supportsBinding(const MVKMTLBufferBinding& bufferBinding) override { return true; }
 
 	void reset() override;
 
@@ -358,6 +369,8 @@ public:
 			  VkBufferView* pTexelBufferView,
 			  VkWriteDescriptorSetInlineUniformBlockEXT* inlineUniformBlock) override;
 
+	bool supportsBinding(const MVKMTLBufferBinding& bufferBinding) override { return true; }
+
 	void reset() override;
 
 	/**
@@ -406,6 +419,8 @@ public:
 			  VkBufferView* pTexelBufferView,
 			  VkWriteDescriptorSetInlineUniformBlockEXT* inlineUniformBlock) override;
 
+	bool supportsBinding(const MVKMTLTextureBinding& textureBinding) override { return true; }
+
 	void reset() override;
 
 	~MVKImageDescriptor() { reset(); }
@@ -431,6 +446,9 @@ public:
 class MVKStorageImageDescriptor : public MVKImageDescriptor {
 public:
 	VkDescriptorType getDescriptorType() override { return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; }
+
+	using MVKImageDescriptor::supportsBinding;
+	bool supportsBinding(const MVKMTLBufferBinding& bufferBinding) override { return true; }
 };
 
 
@@ -528,6 +546,8 @@ public:
 
 	void setLayout(MVKDescriptorSetLayoutBinding* dslBinding, uint32_t index) override;
 
+	bool supportsBinding(const MVKMTLSamplerStateBinding& samplerBinding) override { return true; }
+
 	void reset() override;
 
 	~MVKSamplerDescriptor() { reset(); }
@@ -568,6 +588,9 @@ public:
 
 	void setLayout(MVKDescriptorSetLayoutBinding* dslBinding, uint32_t index) override;
 
+	using MVKImageDescriptor::supportsBinding;
+	bool supportsBinding(const MVKMTLSamplerStateBinding& samplerBinding) override { return true; }
+
 	uint32_t getSamplerArgBufferIndexOffset(MVKDescriptorSetLayoutBinding* dslBinding) override;
 
 	void reset() override;
@@ -606,6 +629,8 @@ public:
 			  VkBufferView* pTexelBufferView,
 			  VkWriteDescriptorSetInlineUniformBlockEXT* inlineUniformBlock) override;
 
+	bool supportsBinding(const MVKMTLTextureBinding& textureBinding) override { return true; }
+
 	void reset() override;
 
 	~MVKTexelBufferDescriptor() { reset(); }
@@ -630,4 +655,7 @@ public:
 class MVKStorageTexelBufferDescriptor : public MVKTexelBufferDescriptor {
 public:
 	VkDescriptorType getDescriptorType() override { return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER; }
+
+	using MVKTexelBufferDescriptor::supportsBinding;
+	bool supportsBinding(const MVKMTLBufferBinding& bufferBinding) override { return true; }
 };

@@ -180,8 +180,7 @@ public:
 	 * argument encoders in this pipeline. Caller should lock the _mtlArgumentEncodingLock mutex
 	 * prior to calling this, and release the lock after calling unbindMetalArgumentBuffers().
 	 */
-	void bindMetalArgumentBuffers(MVKArrayRef<MVKDescriptorSet*> descriptorSets,
-								  MVKShaderStage stage);
+	void bindMetalArgumentBuffers(MVKDescriptorSet* descriptorSets[], MVKShaderStage stage);
 
 	/** Clears all bindings to the argument encoders. */
 	void unbindMetalArgumentBuffers();
@@ -206,6 +205,7 @@ public:
 protected:
 	void propagateDebugName() override {}
 	void addMTLArgumentEncoders(MVKPipelineLayout* layout, SPIRVToMSLConversionConfiguration& shaderConfig);
+	id<MTLArgumentEncoder> getMTLArgumentEncoder(uint32_t descSetIdx);
 
 	MVKPipelineCache* _pipelineCache;
 	MVKSmallVector<id<MTLArgumentEncoder>> _mtlArgumentEncoders;
