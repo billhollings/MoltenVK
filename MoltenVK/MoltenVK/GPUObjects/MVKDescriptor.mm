@@ -757,7 +757,7 @@ MTLResourceUsage MVKDescriptor::getMTLResourceUsage() {
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 							   uint32_t descSetIndex,
-							   uint32_t descriptorIndex,
+							   uint32_t elementIndex,
 							   MVKDescriptorSetLayoutBinding* mvkDSLBind,
 							   bool stages[],
 							   MVKShaderResourceBinding& mtlIndexes,
@@ -774,6 +774,7 @@ void MVKBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 
 	MVKMTLBufferBinding bb;
 	bb.descriptorSetIndex = descSetIndex;
+	bb.descriptorIndex = mvkDSLBind->getDescriptorIndex(elementIndex);
 	bb.mtlUsage = getMTLResourceUsage();
 	bb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
 
@@ -788,13 +789,13 @@ void MVKBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 
 	if (mvkDSLBind->isUsingMetalArgumentBuffer()) {
 		bb.useArgumentBuffer = true;
-		bb.index = mvkDSLBind->getMTLArgumentBufferIndex(descriptorIndex);
+		bb.index = mvkDSLBind->getMTLArgumentBufferIndex(elementIndex);
 	}
 
 	for (uint32_t i = kMVKShaderStageVertex; i < kMVKShaderStageCount; i++) {
 		if (stages[i]) {
 			if ( !bb.useArgumentBuffer ) {
-				bb.index = mtlIndexes.stages[i].bufferIndex + descriptorIndex;
+				bb.index = mtlIndexes.stages[i].bufferIndex + elementIndex;
 			}
 			if (cmdEncoder) { cmdEncoder->bindBuffer(bb, MVKShaderStage(i)); }
 		}
@@ -844,7 +845,7 @@ void MVKBufferDescriptor::reset() {
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKInlineUniformBlockDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 										   uint32_t descSetIndex,
-										   uint32_t descriptorIndex,
+										   uint32_t elementIndex,
 										   MVKDescriptorSetLayoutBinding* mvkDSLBind,
 										   bool stages[],
 										   MVKShaderResourceBinding& mtlIndexes,
@@ -853,6 +854,7 @@ void MVKInlineUniformBlockDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 
 	MVKMTLBufferBinding bb;
 	bb.descriptorSetIndex = descSetIndex;
+	bb.descriptorIndex = mvkDSLBind->getDescriptorIndex(elementIndex);
 	bb.mtlUsage = getMTLResourceUsage();
 	bb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
 
@@ -960,7 +962,7 @@ bool MVKInlineUniformBlockDescriptor::shouldEmbedInlineBlocksInMetalAgumentBuffe
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKImageDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 							  uint32_t descSetIndex,
-							  uint32_t descriptorIndex,
+							  uint32_t elementIndex,
 							  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 							  bool stages[],
 							  MVKShaderResourceBinding& mtlIndexes,
@@ -968,11 +970,13 @@ void MVKImageDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 							  uint32_t& dynamicOffsetIndex) {
 	MVKMTLTextureBinding tb;
 	tb.descriptorSetIndex = descSetIndex;
+	tb.descriptorIndex = mvkDSLBind->getDescriptorIndex(elementIndex);
 	tb.mtlUsage = getMTLResourceUsage();
 	tb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
 
 	MVKMTLBufferBinding bb;
 	bb.descriptorSetIndex = tb.descriptorSetIndex;
+	bb.descriptorIndex = tb.descriptorIndex;
 	bb.mtlUsage = tb.mtlUsage;
 	bb.mtlStages = tb.mtlStages;
 
@@ -995,7 +999,7 @@ void MVKImageDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 			bb.size = (uint32_t)(mtlTex.height * mtlTex.bufferBytesPerRow);
 		}
 
-		uint32_t planeDescIdx = (descriptorIndex * planeCount) + planeIndex;
+		uint32_t planeDescIdx = (elementIndex * planeCount) + planeIndex;
 
 		if (mvkDSLBind->isUsingMetalArgumentBuffer()) {
 			tb.useArgumentBuffer = true;
@@ -1065,7 +1069,7 @@ void MVKImageDescriptor::reset() {
 // even if not used, so populate a default if one hasn't been set.
 void MVKSamplerDescriptorMixin::bind(MVKCommandEncoder* cmdEncoder,
 									 uint32_t descSetIndex,
-									 uint32_t descriptorIndex,
+									 uint32_t elementIndex,
 									 MVKDescriptorSetLayoutBinding* mvkDSLBind,
 									 bool stages[],
 									 MVKShaderResourceBinding& mtlIndexes,
@@ -1073,6 +1077,7 @@ void MVKSamplerDescriptorMixin::bind(MVKCommandEncoder* cmdEncoder,
 									 uint32_t& dynamicOffsetIndex) {
 	MVKMTLSamplerStateBinding sb;
 	sb.descriptorSetIndex = descSetIndex;
+	sb.descriptorIndex = mvkDSLBind->getDescriptorIndex(elementIndex);
 
 	sb.mtlSamplerState = (_mvkSampler
 						  ? _mvkSampler->getMTLSamplerState()
@@ -1080,13 +1085,13 @@ void MVKSamplerDescriptorMixin::bind(MVKCommandEncoder* cmdEncoder,
 
 	if (mvkDSLBind->isUsingMetalArgumentBuffer()) {
 		sb.useArgumentBuffer = true;
-		sb.index = mvkDSLBind->getMTLArgumentBufferIndex(getSamplerArgBufferIndexOffset(mvkDSLBind) + descriptorIndex);
+		sb.index = mvkDSLBind->getMTLArgumentBufferIndex(getSamplerArgBufferIndexOffset(mvkDSLBind) + elementIndex);
 	}
 
 	for (uint32_t i = kMVKShaderStageVertex; i < kMVKShaderStageCount; i++) {
 		if (stages[i]) {
 			if ( !sb.useArgumentBuffer ) {
-				sb.index = mtlIndexes.stages[i].samplerIndex + descriptorIndex;
+				sb.index = mtlIndexes.stages[i].samplerIndex + elementIndex;
 			}
 			if (cmdEncoder) { cmdEncoder->bindSamplerState(sb, MVKShaderStage(i)); }
 		}
@@ -1147,13 +1152,13 @@ void MVKSamplerDescriptorMixin::reset() {
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKSamplerDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 								uint32_t descSetIndex,
-								uint32_t descriptorIndex,
+								uint32_t elementIndex,
 								MVKDescriptorSetLayoutBinding* mvkDSLBind,
 								bool stages[],
 								MVKShaderResourceBinding& mtlIndexes,
 								MVKArrayRef<uint32_t> dynamicOffsets,
 								uint32_t& dynamicOffsetIndex) {
-	MVKSamplerDescriptorMixin::bind(cmdEncoder, descSetIndex, descriptorIndex, mvkDSLBind,
+	MVKSamplerDescriptorMixin::bind(cmdEncoder, descSetIndex, elementIndex, mvkDSLBind,
 									stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
 }
 
@@ -1191,15 +1196,15 @@ void MVKSamplerDescriptor::reset() {
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKCombinedImageSamplerDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 											 uint32_t descSetIndex,
-											 uint32_t descriptorIndex,
+											 uint32_t elementIndex,
 											 MVKDescriptorSetLayoutBinding* mvkDSLBind,
 											 bool stages[],
 											 MVKShaderResourceBinding& mtlIndexes,
 											 MVKArrayRef<uint32_t> dynamicOffsets,
 											 uint32_t& dynamicOffsetIndex) {
-	MVKImageDescriptor::bind(cmdEncoder, descSetIndex, descriptorIndex, mvkDSLBind,
+	MVKImageDescriptor::bind(cmdEncoder, descSetIndex, elementIndex, mvkDSLBind,
 							 stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
-	MVKSamplerDescriptorMixin::bind(cmdEncoder, descSetIndex, descriptorIndex, mvkDSLBind,
+	MVKSamplerDescriptorMixin::bind(cmdEncoder, descSetIndex, elementIndex, mvkDSLBind,
 									stages, mtlIndexes, dynamicOffsets, dynamicOffsetIndex);
 }
 
@@ -1244,7 +1249,7 @@ void MVKCombinedImageSamplerDescriptor::reset() {
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKTexelBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 									uint32_t descSetIndex,
-									uint32_t descriptorIndex,
+									uint32_t elementIndex,
 									MVKDescriptorSetLayoutBinding* mvkDSLBind,
 									bool stages[],
 									MVKShaderResourceBinding& mtlIndexes,
@@ -1252,11 +1257,13 @@ void MVKTexelBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 									uint32_t& dynamicOffsetIndex) {
 	MVKMTLTextureBinding tb;
 	tb.descriptorSetIndex = descSetIndex;
+	tb.descriptorIndex = mvkDSLBind->getDescriptorIndex(elementIndex);
 	tb.mtlUsage = getMTLResourceUsage();
 	tb.mtlStages = mvkMTLRenderStagesFromMVKShaderStages(stages);
 
 	MVKMTLBufferBinding bb;
 	bb.descriptorSetIndex = tb.descriptorSetIndex;
+	bb.descriptorIndex = tb.descriptorIndex;
 	bb.mtlUsage = tb.mtlUsage;
 	bb.mtlStages = tb.mtlStages;
 
@@ -1273,7 +1280,7 @@ void MVKTexelBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 
 	if (mvkDSLBind->isUsingMetalArgumentBuffer()) {
 		tb.useArgumentBuffer = true;
-		tb.index = mvkDSLBind->getMTLArgumentBufferIndex(descriptorIndex);
+		tb.index = mvkDSLBind->getMTLArgumentBufferIndex(elementIndex);
 
 		bb.useArgumentBuffer = true;
 		bb.index = tb.index + mvkDSLBind->getDescriptorCount();
@@ -1282,13 +1289,13 @@ void MVKTexelBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 	for (uint32_t i = kMVKShaderStageVertex; i < kMVKShaderStageCount; i++) {
 		if (stages[i]) {
 			if ( !tb.useArgumentBuffer ) {
-				tb.index = mtlIndexes.stages[i].textureIndex + descriptorIndex;
+				tb.index = mtlIndexes.stages[i].textureIndex + elementIndex;
 			}
 			if (cmdEncoder) { cmdEncoder->bindTexture(tb, MVKShaderStage(i)); }
 
 			if (descType == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER) {
 				if ( !bb.useArgumentBuffer ) {
-					bb.index = mtlIndexes.stages[i].bufferIndex + descriptorIndex;
+					bb.index = mtlIndexes.stages[i].bufferIndex + elementIndex;
 				}
 				if (cmdEncoder) { cmdEncoder->bindBuffer(bb, MVKShaderStage(i)); }
 			}

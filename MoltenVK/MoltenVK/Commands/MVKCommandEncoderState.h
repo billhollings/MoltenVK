@@ -439,7 +439,8 @@ protected:
 	// Returns whether the binding can be found in the bound descriptor sets.
 	// In the case where a pipeline layout does not completely override all the
 	// bindings of a pipeline layout previously bound, there may be outstanding
-	// bindings that are not used by the new pipeline layout.
+	// bindings that are not used by the new pipeline layout, or with different
+	// resource types, which this class tracks in separate arrays.
 	template<class T>
 	bool hasArgumentBufferBinding(const T& b) {
 		return (b.descriptorSetIndex < kMVKMaxDescriptorSetCount &&

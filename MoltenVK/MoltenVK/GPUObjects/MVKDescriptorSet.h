@@ -151,12 +151,12 @@ public:
 	inline NSUInteger getMetalArgumentBufferOffset() { return _mtlArgumentBufferOffset; }
 
 	/** Returns whether this descriptor set is used by the shader stage. */
-	inline bool isUsedByShaderStage(MVKShaderStage stage) {return _layout->_applyToStage[stage]; }
+	inline bool isUsedByShaderStage(MVKShaderStage stage) { return _layout->_applyToStage[stage]; }
 
 	/** Returns whether the binding is used as an argument buffer binding. */
 	template<class T>
 	bool hasArgumentBufferBinding(const T& b) {
-		return (b.index < _descriptors.size() && _descriptors[b.index]->supportsBinding(b));
+		return (b.descriptorIndex < _descriptors.size() && _descriptors[b.descriptorIndex]->supportsBinding(b));
 	}
 
 	MVKDescriptorSet(MVKDescriptorPool* pool);

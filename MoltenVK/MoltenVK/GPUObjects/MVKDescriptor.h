@@ -136,6 +136,9 @@ public:
 	/** Returns whether this binding layout is using an argument buffer. */
 	bool isUsingMetalArgumentBuffer() const;
 
+	/** Returns the index of the descriptor within the descriptor set of the element at the index within this descriptor layout. */
+	inline uint32_t getDescriptorIndex(uint32_t elementIndex = 0) { return _descriptorIndex + elementIndex; }
+
 	/** Returns the index into the argument buffer for the element at the index within this descriptor layout. */
 	inline uint32_t getMTLArgumentBufferIndex(uint32_t elementIndex = 0) { return _argumentBufferIndex + elementIndex; }
 
@@ -153,7 +156,6 @@ protected:
     friend class MVKDescriptorSetLayout;
 	friend class MVKInlineUniformBlockDescriptor;
 
-	inline uint32_t getDescriptorIndex(uint32_t elementIndex = 0) { return _descriptorIndex + elementIndex; }
 	void initMetalArgumentBufferIndexes(uint32_t& argIdx, NSUInteger& argBuffSize);
 	void initMetalResourceIndexOffsets(MVKShaderStageResourceBinding* pBindingIndexes,
 									   MVKShaderStageResourceBinding* pDescSetCounts,
@@ -200,7 +202,7 @@ public:
 	/** Encodes this descriptor (based on its layout binding index) on the the command encoder. */
 	virtual void bind(MVKCommandEncoder* cmdEncoder,
 					  uint32_t descSetIndex,
-					  uint32_t descriptorIndex,
+					  uint32_t elementIndex,
 					  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 					  bool stages[],
 					  MVKShaderResourceBinding& mtlIndexes,
@@ -269,7 +271,7 @@ class MVKBufferDescriptor : public MVKDescriptor {
 public:
 	void bind(MVKCommandEncoder* cmdEncoder,
 			  uint32_t descSetIndex,
-			  uint32_t descriptorIndex,
+			  uint32_t elementIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 			  bool stages[],
 			  MVKShaderResourceBinding& mtlIndexes,
@@ -349,7 +351,7 @@ public:
 
 	void bind(MVKCommandEncoder* cmdEncoder,
 			  uint32_t descSetIndex,
-			  uint32_t descriptorIndex,
+			  uint32_t elementIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 			  bool stages[],
 			  MVKShaderResourceBinding& mtlIndexes,
@@ -399,7 +401,7 @@ class MVKImageDescriptor : public MVKDescriptor {
 public:
 	void bind(MVKCommandEncoder* cmdEncoder,
 			  uint32_t descSetIndex,
-			  uint32_t descriptorIndex,
+			  uint32_t elementIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 			  bool stages[],
 			  MVKShaderResourceBinding& mtlIndexes,
@@ -476,7 +478,7 @@ class MVKSamplerDescriptorMixin {
 protected:
 	void bind(MVKCommandEncoder* cmdEncoder,
 			  uint32_t descSetIndex,
-			  uint32_t descriptorIndex,
+			  uint32_t elementIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 			  bool stages[],
 			  MVKShaderResourceBinding& mtlIndexes,
@@ -524,7 +526,7 @@ public:
 
 	void bind(MVKCommandEncoder* cmdEncoder,
 			  uint32_t descSetIndex,
-			  uint32_t descriptorIndex,
+			  uint32_t elementIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 			  bool stages[],
 			  MVKShaderResourceBinding& mtlIndexes,
@@ -566,7 +568,7 @@ public:
 
 	void bind(MVKCommandEncoder* cmdEncoder,
 			  uint32_t descSetIndex,
-			  uint32_t descriptorIndex,
+			  uint32_t elementIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 			  bool stages[],
 			  MVKShaderResourceBinding& mtlIndexes,
@@ -609,7 +611,7 @@ class MVKTexelBufferDescriptor : public MVKDescriptor {
 public:
 	void bind(MVKCommandEncoder* cmdEncoder,
 			  uint32_t descSetIndex,
-			  uint32_t descriptorIndex,
+			  uint32_t elementIndex,
 			  MVKDescriptorSetLayoutBinding* mvkDSLBind,
 			  bool stages[],
 			  MVKShaderResourceBinding& mtlIndexes,

@@ -33,6 +33,7 @@ typedef struct {
     union { id<MTLTexture> mtlTexture = nil; id<MTLTexture> mtlResource; }; // aliases
     uint32_t swizzle = 0;
 	uint32_t index = 0;
+	uint32_t descriptorIndex = 0;
 	uint8_t descriptorSetIndex = 0;
 	uint8_t mtlUsage = 0;		// As MTLResourceUsage
 	uint8_t mtlStages = 0;		// As MTLRenderStages
@@ -44,6 +45,7 @@ typedef struct {
 typedef struct {
     union { id<MTLSamplerState> mtlSamplerState = nil; id<MTLSamplerState> mtlResource; }; // aliases
 	uint32_t index = 0;
+	uint32_t descriptorIndex = 0;
 	uint8_t descriptorSetIndex = 0;
     bool isDirty = true;
 	bool useArgumentBuffer = false;
@@ -55,6 +57,7 @@ typedef struct {
     VkDeviceSize offset = 0;
     uint32_t size = 0;
 	uint32_t index = 0;
+	uint32_t descriptorIndex = 0;
 	uint8_t descriptorSetIndex = 0;
 	uint8_t mtlUsage = 0;		// As MTLResourceUsage
 	uint8_t mtlStages = 0;		// As MTLRenderStages
