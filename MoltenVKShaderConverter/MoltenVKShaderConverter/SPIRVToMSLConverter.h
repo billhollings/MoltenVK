@@ -19,11 +19,13 @@
 #ifndef __SPIRVToMSLConverter_h_
 #define __SPIRVToMSLConverter_h_ 1
 
+#include "SPIRVReflection.h"
 #include <SPIRV-Cross/spirv.hpp>
 #include <SPIRV-Cross/spirv_msl.hpp>
 #include <string>
 #include <vector>
 #include <unordered_map>
+
 
 namespace mvk {
 
@@ -106,8 +108,8 @@ namespace mvk {
 	 */
 	typedef struct MSLResourceBinding {
 		SPIRV_CROSS_NAMESPACE::MSLResourceBinding resourceBinding;
-		SPIRV_CROSS_NAMESPACE::MSLTextureType mslTextureType= SPIRV_CROSS_NAMESPACE::MSL_TEXTURE_TYPE_2D;
 		SPIRV_CROSS_NAMESPACE::MSLConstexprSampler constExprSampler;
+		MTLTextureType mtlTextureType = MTLTextureType2D;
 		bool requiresConstExprSampler = false;
 
 		bool isUsedByShader = false;
@@ -159,8 +161,8 @@ namespace mvk {
         /** Returns whether the vertex buffer at the specified Vulkan binding is used by the shader. */
 		bool isVertexBufferUsed(uint32_t binding) const { return countShaderInputsAt(binding) > 0; }
 
-		/** Returns the MSLTextureType of the image resource at the descriptor set and binding. */
-		SPIRV_CROSS_NAMESPACE::MSLTextureType getMSLTextureType(uint32_t descSet, uint32_t binding) const;
+		/** Returns the MTLTextureType of the image resource at the descriptor set and binding. */
+		MTLTextureType getMTLTextureType(uint32_t descSet, uint32_t binding) const;
 
 		/** Marks all input variables and resources as being used by the shader. */
 		void markAllInputsAndResourcesUsed();

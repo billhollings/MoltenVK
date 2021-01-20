@@ -131,22 +131,6 @@ MTLRenderStages mvkMTLRenderStagesFromMVKShaderStages(bool stageEnabled[]) {
 	return mtlStages;
 }
 
-MTLTextureType mvkMTLTextureTypeFromMSLTextureType(MSLTextureType mslTextureType) {
-	switch (mslTextureType) {
-		case MSL_TEXTURE_TYPE_1D:						return MTLTextureType1D;
-		case MSL_TEXTURE_TYPE_1D_ARRAY:					return MTLTextureType1DArray;
-		case MSL_TEXTURE_TYPE_2D:						return MTLTextureType2D;
-		case MSL_TEXTURE_TYPE_2D_ARRAY:					return MTLTextureType2DArray;
-		case MSL_TEXTURE_TYPE_2D_MULTISAMPLE:			return MTLTextureType2DMultisample;
-		case MSL_TEXTURE_TYPE_2D_MULTISAMPLE_ARRAY:		return MTLTextureType2DMultisampleArray;
-		case MSL_TEXTURE_TYPE_3D:						return MTLTextureType3D;
-		case MSL_TEXTURE_TYPE_CUBE:						return MTLTextureTypeCube;
-		case MSL_TEXTURE_TYPE_CUBE_ARRAY:				return MTLTextureTypeCubeArray;
-		case MSL_TEXTURE_TYPE_TEXTURE_BUFFER:			return MTLTextureTypeTextureBuffer;
-		default:										return MTLTextureType2D;
-	}
-}
-
 
 #pragma mark -
 #pragma mark MVKDescriptorSetLayoutBinding
@@ -516,7 +500,7 @@ void MVKDescriptorSetLayoutBinding::addMTLArgumentDescriptor(NSMutableArray<MTLA
 	argDesc.access = access;
 	argDesc.index = _argumentBufferIndex + argIdxOffset;
 	argDesc.arrayLength = mtlArgDescAryLen;
-	argDesc.textureType = mvkMTLTextureTypeFromMSLTextureType(shaderConfig.getMSLTextureType(descSetIdx, getBinding()));
+	argDesc.textureType = shaderConfig.getMTLTextureType(descSetIdx, getBinding());
 
 	[args addObject: argDesc];
 }

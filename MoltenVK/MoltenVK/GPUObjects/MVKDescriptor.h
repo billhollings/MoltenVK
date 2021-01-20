@@ -76,9 +76,6 @@ void mvkPopulateShaderConverterContext(mvk::SPIRVToMSLConversionConfiguration& s
 /** Returns a bitwise OR of Metal render stages from the array of shader stages, which must have a length of kMVKShaderStageCount. */
 MTLRenderStages mvkMTLRenderStagesFromMVKShaderStages(bool stageEnabled[]);
 
-/** Returns the MTLTextureType corresponding to the shader conversion MSLTextureType. */
-MTLTextureType mvkMTLTextureTypeFromMSLTextureType(SPIRV_CROSS_NAMESPACE::MSLTextureType mslTextureType);
-
 
 #pragma mark -
 #pragma mark MVKDescriptorSetLayoutBinding

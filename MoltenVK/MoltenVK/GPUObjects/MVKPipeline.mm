@@ -2187,8 +2187,8 @@ namespace mvk {
 	template<class Archive>
 	void serialize(Archive & archive, MSLResourceBinding& rb) {
 		archive(rb.resourceBinding,
-				rb.mslTextureType,
 				rb.constExprSampler,
+				rb.mtlTextureType,
 				rb.requiresConstExprSampler,
 				rb.isUsedByShader);
 	}
