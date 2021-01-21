@@ -305,9 +305,12 @@ namespace mvk {
 
 					case spv::Dim2D:
 					case spv::DimSubpassData:
-						return (imgType.ms
-								? (isArray ? MTLTextureType2DMultisampleArray : MTLTextureType2DMultisample)
-								: (isArray ? MTLTextureType2DArray : MTLTextureType2D));
+#if MVK_MACOS_OR_IOS
+						if (isArray && imgType.ms) { return MTLTextureType2DMultisampleArray; }
+#endif
+						return (isArray
+								? MTLTextureType2DArray
+								: (imgType.ms ? MTLTextureType2DMultisample : MTLTextureType2D));
 
 					case spv::Dim3D:
 						return MTLTextureType3D;
