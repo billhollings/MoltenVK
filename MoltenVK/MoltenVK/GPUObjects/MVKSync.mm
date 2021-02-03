@@ -1,7 +1,7 @@
 /*
  * MVKSync.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 
 #include "MVKSync.h"
 #include "MVKFoundation.h"
-#include "MVKLogging.h"
 
 using namespace std;
 
@@ -522,7 +521,7 @@ void MVKMetalCompiler::compile(unique_lock<mutex>& lock, dispatch_block_t block)
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{ @autoreleasepool { block(); } });
 
 	// Limit timeout to avoid overflow since wait_for() uses wait_until()
-	chrono::nanoseconds nanoTimeout(min(mvkDev->_pMVKConfig->metalCompileTimeout, kMVKUndefinedLargeUInt64));
+	chrono::nanoseconds nanoTimeout(min(mvkGetMVKConfiguration()->metalCompileTimeout, kMVKUndefinedLargeUInt64));
 	_blocker.wait_for(lock, nanoTimeout, [this]{ return _isCompileDone; });
 
 	if ( !_isCompileDone ) {

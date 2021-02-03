@@ -1,7 +1,7 @@
 /*
  * MVKCommandBuffer.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 #include "MVKFramebuffer.h"
 #include "MVKQueryPool.h"
 #include "MVKFoundation.h"
-#include "MVKLogging.h"
 #include "MTLRenderPassDescriptor+MoltenVK.h"
 #include "MVKCmdDraw.h"
 #include "MVKCmdRenderPass.h"
+#include <sys/mman.h>
 
 using namespace std;
 
@@ -75,7 +75,7 @@ VkResult MVKCommandBuffer::reset(VkCommandBufferResetFlags flags) {
 	_wasExecuted = false;
 	_isExecutingNonConcurrently.clear();
 	_commandCount = 0;
-	_initialVisibilityResultMTLBuffer = nil;		// not retained
+	_needsVisibilityResultMTLBuffer = false;
 	_lastTessellationPipeline = nullptr;
 	_lastMultiviewSubpass = nullptr;
 	setConfigurationResult(VK_NOT_READY);
@@ -199,10 +199,10 @@ MVKCommandBuffer::~MVKCommandBuffer() {
 // found among any of the secondary command buffers, to support the case where a render pass is started in
 // the primary command buffer but the visibility query is started inside one of the secondary command buffers.
 void MVKCommandBuffer::recordExecuteCommands(const MVKArrayRef<MVKCommandBuffer*> secondaryCommandBuffers) {
-	if (_initialVisibilityResultMTLBuffer == nil) {
+	if (!_needsVisibilityResultMTLBuffer) {
 		for (MVKCommandBuffer* cmdBuff : secondaryCommandBuffers) {
-			if (cmdBuff->_initialVisibilityResultMTLBuffer) {
-				_initialVisibilityResultMTLBuffer = cmdBuff->_initialVisibilityResultMTLBuffer;
+			if (cmdBuff->_needsVisibilityResultMTLBuffer) {
+				_needsVisibilityResultMTLBuffer = true;
 				break;
 			}
 		}
@@ -335,7 +335,12 @@ void MVKCommandEncoder::beginMetalRenderPass(bool loadOverride) {
 
     MTLRenderPassDescriptor* mtlRPDesc = [MTLRenderPassDescriptor renderPassDescriptor];
     getSubpass()->populateMTLRenderPassDescriptor(mtlRPDesc, _multiviewPassIndex, _framebuffer, _clearValues.contents(), _isRenderingEntireAttachment, loadOverride);
-    mtlRPDesc.visibilityResultBuffer = _occlusionQueryState.getVisibilityResultMTLBuffer();
+    if (_occlusionQueryState.getNeedsVisibilityResultMTLBuffer()) {
+        if (!_visibilityResultMTLBuffer) {
+            _visibilityResultMTLBuffer = getTempMTLBuffer(_pDeviceMetalFeatures->maxQueryBufferSize, true);
+        }
+        mtlRPDesc.visibilityResultBuffer = _visibilityResultMTLBuffer->_mtlBuffer;
+    }
 
     VkExtent2D fbExtent = _framebuffer->getExtent2D();
     mtlRPDesc.renderTargetWidthMVK = max(min(_renderArea.offset.x + _renderArea.extent.width, fbExtent.width), 1u);
@@ -567,8 +572,24 @@ void MVKCommandEncoder::endRenderpass() {
 
 void MVKCommandEncoder::endMetalRenderEncoding() {
 //    MVKLogDebugIf(_mtlRenderEncoder, "Render subpass end MTLRenderCommandEncoder.");
+    if (_mtlRenderEncoder == nil) { return; }
+
     [_mtlRenderEncoder endEncoding];
 	_mtlRenderEncoder = nil;    // not retained
+
+    _graphicsPipelineState.endMetalRenderPass();
+    _graphicsResourcesState.endMetalRenderPass();
+    _viewportState.endMetalRenderPass();
+    _scissorState.endMetalRenderPass();
+    _depthBiasState.endMetalRenderPass();
+    _blendColorState.endMetalRenderPass();
+    _vertexPushConstants.endMetalRenderPass();
+    _tessCtlPushConstants.endMetalRenderPass();
+    _tessEvalPushConstants.endMetalRenderPass();
+    _fragmentPushConstants.endMetalRenderPass();
+    _depthStencilState.endMetalRenderPass();
+    _stencilReferenceValueState.endMetalRenderPass();
+    _occlusionQueryState.endMetalRenderPass();
 }
 
 void MVKCommandEncoder::endCurrentMetalEncoding() {
@@ -667,8 +688,8 @@ void MVKCommandEncoder::setComputeBytes(id<MTLComputeCommandEncoder> mtlEncoder,
     }
 }
 
-const MVKMTLBufferAllocation* MVKCommandEncoder::getTempMTLBuffer(NSUInteger length) {
-    const MVKMTLBufferAllocation* mtlBuffAlloc = getCommandEncodingPool()->acquireMTLBufferAllocation(length);
+const MVKMTLBufferAllocation* MVKCommandEncoder::getTempMTLBuffer(NSUInteger length, bool isDedicated) {
+    const MVKMTLBufferAllocation* mtlBuffAlloc = getCommandEncodingPool()->acquireMTLBufferAllocation(length, isDedicated);
 	MVKMTLBufferAllocationPool* pool = mtlBuffAlloc->getPool();
 
     // Return the MTLBuffer allocation to the pool once the command buffer is done with it
@@ -687,7 +708,9 @@ MVKCommandEncodingPool* MVKCommandEncoder::getCommandEncodingPool() {
 const MVKMTLBufferAllocation* MVKCommandEncoder::copyToTempMTLBufferAllocation(const void* bytes, NSUInteger length) {
     const MVKMTLBufferAllocation* mtlBuffAlloc = getTempMTLBuffer(length);
     void* pBuffData = mtlBuffAlloc->getContents();
+    mlock(pBuffData, length);
     memcpy(pBuffData, bytes, length);
+    munlock(pBuffData, length);
 
     return mtlBuffAlloc;
 }
@@ -697,7 +720,11 @@ const MVKMTLBufferAllocation* MVKCommandEncoder::copyToTempMTLBufferAllocation(c
 
 void MVKCommandEncoder::beginOcclusionQuery(MVKOcclusionQueryPool* pQueryPool, uint32_t query, VkQueryControlFlags flags) {
     _occlusionQueryState.beginOcclusionQuery(pQueryPool, query, flags);
-    addActivatedQuery(pQueryPool, query);
+    uint32_t queryCount = 1;
+    if (_renderPass && getSubpass()->isMultiview()) {
+        queryCount = getSubpass()->getViewCountInMetalPass(_multiviewPassIndex);
+    }
+    addActivatedQueries(pQueryPool, query, queryCount);
 }
 
 void MVKCommandEncoder::endOcclusionQuery(MVKOcclusionQueryPool* pQueryPool, uint32_t query) {
@@ -705,16 +732,21 @@ void MVKCommandEncoder::endOcclusionQuery(MVKOcclusionQueryPool* pQueryPool, uin
 }
 
 void MVKCommandEncoder::markTimestamp(MVKQueryPool* pQueryPool, uint32_t query) {
-    addActivatedQuery(pQueryPool, query);
+    uint32_t queryCount = 1;
+    if (_renderPass && getSubpass()->isMultiview()) {
+        queryCount = getSubpass()->getViewCountInMetalPass(_multiviewPassIndex);
+    }
+    addActivatedQueries(pQueryPool, query, queryCount);
 }
 
-// Marks the specified query as activated
-void MVKCommandEncoder::addActivatedQuery(MVKQueryPool* pQueryPool, uint32_t query) {
+void MVKCommandEncoder::resetQueries(MVKQueryPool* pQueryPool, uint32_t firstQuery, uint32_t queryCount) {
+    addActivatedQueries(pQueryPool, firstQuery, queryCount);
+}
+
+// Marks the specified queries as activated
+void MVKCommandEncoder::addActivatedQueries(MVKQueryPool* pQueryPool, uint32_t query, uint32_t queryCount) {
     if ( !_pActivatedQueries ) { _pActivatedQueries = new MVKActivatedQueries(); }
-    uint32_t endQuery = query + 1;
-    if (_renderPass && getSubpass()->isMultiview()) {
-        endQuery = query + getSubpass()->getViewCountInMetalPass(_multiviewPassIndex);
-    }
+    uint32_t endQuery = query + queryCount;
     while (query < endQuery) {
         (*_pActivatedQueries)[pQueryPool].push_back(query++);
     }
@@ -740,6 +772,7 @@ void MVKCommandEncoder::finishQueries() {
 
 MVKCommandEncoder::MVKCommandEncoder(MVKCommandBuffer* cmdBuffer) : MVKBaseDeviceObject(cmdBuffer->getDevice()),
         _cmdBuffer(cmdBuffer),
+        _visibilityResultMTLBuffer(nil),
         _graphicsPipelineState(this),
         _computePipelineState(this),
         _viewportState(this),
@@ -814,6 +847,7 @@ NSString* mvkMTLComputeCommandEncoderLabel(MVKCommandUse cmdUse) {
         case kMVKCommandUseTessellationVertexTessCtl: return @"vkCmdDraw (vertex and tess control stages) ComputeEncoder";
         case kMVKCommandUseMultiviewInstanceCountAdjust: return @"vkCmdDraw (multiview instance count adjustment) ComputeEncoder";
         case kMVKCommandUseCopyQueryPoolResults:return @"vkCmdCopyQueryPoolResults ComputeEncoder";
+        case kMVKCommandUseAccumOcclusionQuery: return @"Post-render-pass occlusion query accumulation ComputeEncoder";
         default:                                return @"Unknown Use ComputeEncoder";
     }
 }

@@ -1,7 +1,7 @@
 /*
  * MVKShaderModule.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -254,7 +254,8 @@ public:
 	 * If the Metal library compiler does not return within MVKConfiguration::metalCompileTimeout
 	 * nanoseconds, an error will be generated and logged, and nil will be returned.
 	 */
-	id<MTLLibrary> newMTLLibrary(NSString* mslSourceCode);
+	id<MTLLibrary> newMTLLibrary(NSString* mslSourceCode,
+								 const SPIRVToMSLConversionResults& shaderConversionResults);
 
 
 #pragma mark Construction

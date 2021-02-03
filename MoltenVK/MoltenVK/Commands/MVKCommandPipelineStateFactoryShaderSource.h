@@ -1,7 +1,7 @@
 /*
  * MVKCommandPipelineStateFactoryShaderSource.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -374,6 +374,14 @@ kernel void cmdCopyQueryPoolResultsToBuffer(const device VisibilityBuffer* src [
             destCount[1] = availability[query] != Initial ? 1 : 0;                                              \n\
         }                                                                                                       \n\
     }                                                                                                           \n\
+}                                                                                                               \n\
+                                                                                                                \n\
+kernel void accumulateOcclusionQueryResults(device VisibilityBuffer& dest [[buffer(0)]],                        \n\
+                                            const device VisibilityBuffer& src [[buffer(1)]]) {                 \n\
+    uint32_t oldDestCount = dest.count;                                                                         \n\
+    dest.count += src.count;                                                                                    \n\
+    dest.countHigh += src.countHigh;                                                                            \n\
+    if (dest.count < max(oldDestCount, src.count)) { dest.countHigh++; }                                        \n\
 }                                                                                                               \n\
                                                                                                                 \n\
 ";

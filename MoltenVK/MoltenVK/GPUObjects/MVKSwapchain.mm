@@ -1,7 +1,7 @@
 /*
  * MVKSwapchain.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@
 #include "MVKWatermarkTextureContent.h"
 #include "MVKWatermarkShaderSource.h"
 #include "mvk_datatypes.hpp"
-#include "MVKLogging.h"
 #import "CAMetalLayer+MoltenVK.h"
 #import "MVKBlockObserver.h"
 
@@ -124,7 +123,7 @@ void MVKSwapchain::willPresentSurface(id<MTLTexture> mtlTexture, id<MTLCommandBu
 
 // If the product has not been fully licensed, renders the watermark image to the surface.
 void MVKSwapchain::renderWatermark(id<MTLTexture> mtlTexture, id<MTLCommandBuffer> mtlCmdBuff) {
-    if (_device->_pMVKConfig->displayWatermark) {
+    if (mvkGetMVKConfiguration()->displayWatermark) {
         if ( !_licenseWatermark ) {
             _licenseWatermark = new MVKWatermarkRandom(getMTLDevice(),
                                                        __watermarkTextureContent,
@@ -145,7 +144,7 @@ void MVKSwapchain::renderWatermark(id<MTLTexture> mtlTexture, id<MTLCommandBuffe
 
 // Calculates and remembers the time interval between frames.
 void MVKSwapchain::markFrameInterval() {
-	if ( !(_device->_pMVKConfig->performanceTracking || _licenseWatermark) ) { return; }
+	if ( !(mvkGetMVKConfiguration()->performanceTracking || _licenseWatermark) ) { return; }
 
 	uint64_t prevFrameTime = _lastFrameTime;
 	_lastFrameTime = mvkGetTimestamp();
@@ -154,7 +153,7 @@ void MVKSwapchain::markFrameInterval() {
 
 	_device->addActivityPerformance(_device->_performanceStatistics.queue.frameInterval, prevFrameTime, _lastFrameTime);
 
-	uint32_t perfLogCntLimit = _device->_pMVKConfig->performanceLoggingFrameCount;
+	uint32_t perfLogCntLimit = mvkGetMVKConfiguration()->performanceLoggingFrameCount;
 	if ((perfLogCntLimit > 0) && (++_currentPerfLogFrameCount >= perfLogCntLimit)) {
 		_currentPerfLogFrameCount = 0;
 		MVKLogInfo("Performance statistics reporting every: %d frames, avg FPS: %.2f, elapsed time: %.3f seconds:",
@@ -272,7 +271,7 @@ void MVKSwapchain::initCAMetalLayer(const VkSwapchainCreateInfoKHR* pCreateInfo,
 	_mtlLayer.pixelFormat = getPixelFormats()->getMTLPixelFormat(pCreateInfo->imageFormat);
 	_mtlLayer.maximumDrawableCountMVK = imgCnt;
 	_mtlLayer.displaySyncEnabledMVK = (pCreateInfo->presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR);
-	_mtlLayer.magnificationFilter = _device->_pMVKConfig->swapchainMagFilterUseNearest ? kCAFilterNearest : kCAFilterLinear;
+	_mtlLayer.magnificationFilter = mvkGetMVKConfiguration()->swapchainMagFilterUseNearest ? kCAFilterNearest : kCAFilterLinear;
 	_mtlLayer.framebufferOnly = !mvkIsAnyFlagEnabled(pCreateInfo->imageUsage, (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
 																			   VK_IMAGE_USAGE_TRANSFER_DST_BIT |
 																			   VK_IMAGE_USAGE_SAMPLED_BIT |

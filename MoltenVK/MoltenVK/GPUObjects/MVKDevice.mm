@@ -1,7 +1,7 @@
 /*
  * MVKDevice.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,9 +33,7 @@
 #include "MVKFoundation.h"
 #include "MVKCodec.h"
 #include "MVKEnvironment.h"
-#include "MVKLogging.h"
 #include <MoltenVKShaderConverter/SPIRVToMSLConverter.h>
-#include "vk_mvk_moltenvk.h"
 
 #import "CAMetalLayer+MoltenVK.h"
 
@@ -242,7 +240,7 @@ void MVKPhysicalDevice::getFeatures(VkPhysicalDeviceFeatures2* features) {
 				portabilityFeatures->events = true;
 				portabilityFeatures->imageViewFormatReinterpretation = true;
 				portabilityFeatures->imageViewFormatSwizzle = (_metalFeatures.nativeTextureSwizzle ||
-															   _mvkInstance->getMoltenVKConfiguration()->fullImageViewSwizzle);
+															   mvkGetMVKConfiguration()->fullImageViewSwizzle);
 				portabilityFeatures->imageView2DOn3DImage = false;
 				portabilityFeatures->multisampleArrayImage = _metalFeatures.multisampleArrayTextures;
 				portabilityFeatures->mutableComparisonSamplers = _metalFeatures.depthSampleCompare;
@@ -377,7 +375,7 @@ void MVKPhysicalDevice::getProperties(VkPhysicalDeviceProperties2* properties) {
                 break;
             }
 			case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES_EXT: {
-				bool isTier2 = _metalFeatures.argumentBuffers && _mtlDevice.argumentBuffersSupport == MTLArgumentBuffersTier2;
+				bool isTier2 = _useMetalArgumentBuffers && _mtlDevice.argumentBuffersSupport == MTLArgumentBuffersTier2;
 				auto* pDescIdxProps = (VkPhysicalDeviceDescriptorIndexingPropertiesEXT*)next;
 				pDescIdxProps->maxUpdateAfterBindDescriptorsInAllPools				= kMVKUndefinedLargeUInt32;
 				pDescIdxProps->shaderUniformBufferArrayNonUniformIndexingNative		= false;
@@ -560,7 +558,7 @@ VkResult MVKPhysicalDevice::getImageFormatProperties(VkFormat format,
 		case VK_IMAGE_TYPE_1D:
 			maxExt.height = 1;
 			maxExt.depth = 1;
-			if (!mvkTreatTexture1DAs2D()) {
+			if (!mvkGetMVKConfiguration()->texture1DAs2D) {
 				maxExt.width = pLimits->maxImageDimension1D;
 				maxLevels = 1;
 				sampleCounts = VK_SAMPLE_COUNT_1_BIT;
@@ -656,7 +654,7 @@ VkResult MVKPhysicalDevice::getImageFormatProperties(VkFormat format,
 				return VK_ERROR_FORMAT_NOT_SUPPORTED;
 			}
 #endif
-#if MVK_IOS_OR_TVOS || MVK_MACOS_APPLE_SILICON
+#if MVK_APPLE_SILICON
 			// ETC2 and EAC formats aren't supported for 3D textures.
 			switch (format) {
 				case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK:
@@ -1020,7 +1018,7 @@ VkResult MVKPhysicalDevice::getPresentRectangles(MVKSurface* surface,
 MVKArrayRef<MVKQueueFamily*> MVKPhysicalDevice::getQueueFamilies() {
 	if (_queueFamilies.empty()) {
 		VkQueueFamilyProperties qfProps;
-		bool specialize = _mvkInstance->getMoltenVKConfiguration()->specializedQueueFamilies;
+		bool specialize = mvkGetMVKConfiguration()->specializedQueueFamilies;
 		uint32_t qfIdx = 0;
 
 		qfProps.queueCount = kMVKQueueCountPerQueueFamily;
@@ -1159,12 +1157,6 @@ void MVKPhysicalDevice::initProperties() {
 // Initializes the Metal-specific physical device features of this instance.
 void MVKPhysicalDevice::initMetalFeatures() {
 
-#	ifndef MVK_CONFIG_USE_MTLHEAP
-#   	define MVK_CONFIG_USE_MTLHEAP    0
-#	endif
-	bool useMTLHeaps;
-	MVK_SET_FROM_ENV_OR_BUILD_BOOL(useMTLHeaps, MVK_CONFIG_USE_MTLHEAP);
-
 	// Start with all Metal features cleared
 	mvkClear(&_metalFeatures);
 
@@ -1213,7 +1205,7 @@ void MVKPhysicalDevice::initMetalFeatures() {
 	if (supportsMTLFeatureSet(tvOS_GPUFamily1_v3)) {
 		_metalFeatures.mslVersionEnum = MTLLanguageVersion2_0;
         _metalFeatures.renderWithoutAttachments = true;
-		MVK_SET_FROM_ENV_OR_BUILD_BOOL(_metalFeatures.argumentBuffers, MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS);
+		_metalFeatures.argumentBuffers = true;
 	}
 
 	if (supportsMTLFeatureSet(tvOS_GPUFamily1_v4)) {
@@ -1236,7 +1228,7 @@ void MVKPhysicalDevice::initMetalFeatures() {
 
 	if ( mvkOSVersionIsAtLeast(13.0) ) {
 		_metalFeatures.mslVersionEnum = MTLLanguageVersion2_2;
-		_metalFeatures.placementHeaps = useMTLHeaps;
+		_metalFeatures.placementHeaps = mvkGetMVKConfiguration()->useMTLHeap;
 		_metalFeatures.nativeTextureSwizzle = true;
 		if (supportsMTLGPUFamily(Apple3)) {
 			_metalFeatures.native3DCompressedTextures = true;
@@ -1288,7 +1280,7 @@ void MVKPhysicalDevice::initMetalFeatures() {
     if (supportsMTLFeatureSet(iOS_GPUFamily1_v4)) {
 		_metalFeatures.mslVersionEnum = MTLLanguageVersion2_0;
         _metalFeatures.renderWithoutAttachments = true;
-		MVK_SET_FROM_ENV_OR_BUILD_BOOL(_metalFeatures.argumentBuffers, MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS);
+		_metalFeatures.argumentBuffers = true;
     }
 
 	if (supportsMTLFeatureSet(iOS_GPUFamily1_v5)) {
@@ -1328,7 +1320,7 @@ void MVKPhysicalDevice::initMetalFeatures() {
 
 	if ( mvkOSVersionIsAtLeast(13.0) ) {
 		_metalFeatures.mslVersionEnum = MTLLanguageVersion2_2;
-		_metalFeatures.placementHeaps = useMTLHeaps;
+		_metalFeatures.placementHeaps = mvkGetMVKConfiguration()->useMTLHeap;
 		_metalFeatures.nativeTextureSwizzle = true;
 		if (supportsMTLGPUFamily(Apple3)) {
 			_metalFeatures.native3DCompressedTextures = true;
@@ -1397,7 +1389,7 @@ void MVKPhysicalDevice::initMetalFeatures() {
 		_metalFeatures.presentModeImmediate = true;
 		_metalFeatures.fences = true;
 		_metalFeatures.nonUniformThreadgroups = true;
-		MVK_SET_FROM_ENV_OR_BUILD_BOOL(_metalFeatures.argumentBuffers, MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS);
+		_metalFeatures.argumentBuffers = true;
     }
 
     if (supportsMTLFeatureSet(macOS_GPUFamily1_v4)) {
@@ -1405,7 +1397,6 @@ void MVKPhysicalDevice::initMetalFeatures() {
         _metalFeatures.multisampleArrayTextures = true;
 		_metalFeatures.events = true;
         _metalFeatures.textureBuffers = true;
-		_metalFeatures.quadPermute = true;
 		_metalFeatures.simdPermute = true;
     }
 
@@ -1414,6 +1405,7 @@ void MVKPhysicalDevice::initMetalFeatures() {
 		_metalFeatures.stencilFeedback = true;
 		_metalFeatures.depthResolve = true;
 		_metalFeatures.stencilResolve = true;
+		_metalFeatures.quadPermute = true;
 		_metalFeatures.simdReduction = true;
 	}
 
@@ -1421,13 +1413,13 @@ void MVKPhysicalDevice::initMetalFeatures() {
 		_metalFeatures.mslVersionEnum = MTLLanguageVersion2_2;
 		_metalFeatures.maxQueryBufferSize = (256 * KIBI);
 		_metalFeatures.native3DCompressedTextures = true;
-        _metalFeatures.renderWithoutAttachments = true;
         if ( mvkOSVersionIsAtLeast(mvkMakeOSVersion(10, 15, 6)) ) {
             _metalFeatures.sharedLinearTextures = true;
         }
 		if (supportsMTLGPUFamily(Mac2)) {
 			_metalFeatures.nativeTextureSwizzle = true;
-			_metalFeatures.placementHeaps = useMTLHeaps;
+			_metalFeatures.placementHeaps = mvkGetMVKConfiguration()->useMTLHeap;
+			_metalFeatures.renderWithoutAttachments = true;
 		}
 	}
 
@@ -1554,6 +1546,8 @@ void MVKPhysicalDevice::initMetalFeatures() {
 			break;
 #endif
 	}
+
+	_useMetalArgumentBuffers = _metalFeatures.argumentBuffers && mvkGetMVKConfiguration()->useMetalArgumentBuffers;
 }
 
 // Initializes the physical device features of this instance.
@@ -1589,6 +1583,11 @@ void MVKPhysicalDevice::initFeatures() {
 #if MVK_TVOS
     _features.textureCompressionETC2 = true;
     _features.textureCompressionASTC_LDR = true;
+#if MVK_XCODE_12
+	_features.shaderInt64 = mslVersionIsAtLeast(MTLLanguageVersion2_3) && supportsMTLGPUFamily(Apple3);
+#else
+	_features.shaderInt64 = false;
+#endif
 
 	if (supportsMTLFeatureSet(tvOS_GPUFamily1_v3)) {
 		_features.dualSrcBlend = true;
@@ -1605,6 +1604,11 @@ void MVKPhysicalDevice::initFeatures() {
 
 #if MVK_IOS
     _features.textureCompressionETC2 = true;
+#if MVK_XCODE_12
+	_features.shaderInt64 = mslVersionIsAtLeast(MTLLanguageVersion2_3) && supportsMTLGPUFamily(Apple3);
+#else
+	_features.shaderInt64 = false;
+#endif
 
     if (supportsMTLFeatureSet(iOS_GPUFamily2_v1)) {
         _features.textureCompressionASTC_LDR = true;
@@ -1647,6 +1651,11 @@ void MVKPhysicalDevice::initFeatures() {
     _features.depthClamp = true;
     _features.vertexPipelineStoresAndAtomics = true;
     _features.fragmentStoresAndAtomics = true;
+#if MVK_XCODE_12
+	_features.shaderInt64 = mslVersionIsAtLeast(MTLLanguageVersion2_3);
+#else
+	_features.shaderInt64 = false;
+#endif
 
     _features.shaderStorageImageArrayDynamicIndexing = _metalFeatures.arrayOfTextures;
 
@@ -1721,7 +1730,7 @@ void MVKPhysicalDevice::initFeatures() {
 //    VkBool32    shaderClipDistance;                           // done
 //    VkBool32    shaderCullDistance;
 //    VkBool32    shaderFloat64;
-//    VkBool32    shaderInt64;
+//    VkBool32    shaderInt64;                                  // done
 //    VkBool32    shaderInt16;                                  // done
 //    VkBool32    shaderResourceResidency;
 //    VkBool32    shaderResourceMinLod;                         // done
@@ -2112,7 +2121,7 @@ void MVKPhysicalDevice::initGPUInfoProperties() {
 
 	bool isFound = false;
 
-	bool isIntegrated = _mtlDevice.isLowPower;
+	bool isIntegrated = getHasUnifiedMemory();
 	_properties.deviceType = isIntegrated ? VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU : VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 	strlcpy(_properties.deviceName, _mtlDevice.name.UTF8String, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
@@ -2366,7 +2375,7 @@ void MVKPhysicalDevice::initPipelineCacheUUID() {
 	// Last 4 bytes contains flags based on enabled Metal features that
 	// might affect the contents of the pipeline cache (mostly MSL content).
 	uint32_t mtlFeatures = 0;
-	mtlFeatures |= ((bool)_metalFeatures.argumentBuffers) << 0;
+	mtlFeatures |= _useMetalArgumentBuffers << 0;
 	*(uint32_t*)&_properties.pipelineCacheUUID[uuidComponentOffset] = NSSwapHostIntToBig(mtlFeatures);
 	uuidComponentOffset += sizeof(mtlFeatures);
 }
@@ -3002,7 +3011,7 @@ uint32_t MVKDevice::getVulkanMemoryTypeIndex(MTLStorageMode mtlStorageMode) {
             vkMemFlags = MVK_VK_MEMORY_TYPE_METAL_MANAGED;
             break;
 #endif
-#if MVK_IOS_OR_TVOS || MVK_MACOS_APPLE_SILICON
+#if MVK_APPLE_SILICON
         case MTLStorageModeMemoryless:
             vkMemFlags = MVK_VK_MEMORY_TYPE_METAL_MEMORYLESS;
             break;
@@ -3092,7 +3101,7 @@ MVKSwapchain* MVKDevice::createSwapchain(const VkSwapchainCreateInfoKHR* pCreate
 	// MTLCreateSystemDefaultDevice function, and if that GPU is the same as the
 	// selected GPU, update the MTLDevice instance used by the MVKPhysicalDevice.
 	id<MTLDevice> mtlDevice = _physicalDevice->getMTLDevice();
-	if (_pMVKConfig->switchSystemGPU && !(mtlDevice.isLowPower || mtlDevice.isHeadless) ) {
+	if (mvkGetMVKConfiguration()->switchSystemGPU && !(mtlDevice.isLowPower || mtlDevice.isHeadless) ) {
 		id<MTLDevice> sysMTLDevice = MTLCreateSystemDefaultDevice();
 		if (mvkGetRegistryID(sysMTLDevice) == mvkGetRegistryID(mtlDevice)) {
 			_physicalDevice->replaceMTLDevice(sysMTLDevice);
@@ -3158,10 +3167,10 @@ MVKSemaphore* MVKDevice::createSemaphore(const VkSemaphoreCreateInfo* pCreateInf
 			return new MVKTimelineSemaphoreEmulated(this, pCreateInfo, pTypeCreateInfo);
 		}
 	} else {
-		if (_useMTLEventForSemaphores) {
-			return new MVKSemaphoreMTLEvent(this, pCreateInfo);
-		} else if (_useMTLFenceForSemaphores) {
+		if (_useMTLFenceForSemaphores) {
 			return new MVKSemaphoreMTLFence(this, pCreateInfo);
+		} else if (_useMTLEventForSemaphores) {
+			return new MVKSemaphoreMTLEvent(this, pCreateInfo);
 		} else {
 			return new MVKSemaphoreEmulated(this, pCreateInfo);
 		}
@@ -3374,7 +3383,7 @@ void MVKDevice::destroyRenderPass(MVKRenderPass* mvkRP,
 
 MVKCommandPool* MVKDevice::createCommandPool(const VkCommandPoolCreateInfo* pCreateInfo,
 											const VkAllocationCallbacks* pAllocator) {
-	return new MVKCommandPool(this, pCreateInfo, _useCommandPooling);
+	return new MVKCommandPool(this, pCreateInfo, mvkGetMVKConfiguration()->useCommandPooling);
 }
 
 void MVKDevice::destroyCommandPool(MVKCommandPool* mvkCmdPool,
@@ -3640,7 +3649,7 @@ id<MTLSamplerState> MVKDevice::getDefaultMTLSamplerState() {
 		if ( !_defaultMTLSamplerState ) {
 			@autoreleasepool {
 				MTLSamplerDescriptor* mtlSampDesc = [[MTLSamplerDescriptor new] autorelease];
-				mtlSampDesc.supportArgumentBuffers = _pMetalFeatures->argumentBuffers;
+				mtlSampDesc.supportArgumentBuffers = _physicalDevice->_useMetalArgumentBuffers;
 				_defaultMTLSamplerState = [getMTLDevice() newSamplerStateWithDescriptor: mtlSampDesc];	// retained
 			}
 		}
@@ -3648,9 +3657,21 @@ id<MTLSamplerState> MVKDevice::getDefaultMTLSamplerState() {
 	return _defaultMTLSamplerState;
 }
 
+MTLCompileOptions* MVKDevice::getMTLCompileOptions(bool useFastMath, bool preserveInvariance) {
+	MTLCompileOptions* mtlCompOpt = [MTLCompileOptions new];
+	mtlCompOpt.languageVersion = _pMetalFeatures->mslVersionEnum;
+	mtlCompOpt.fastMathEnabled = useFastMath && mvkGetMVKConfiguration()->fastMathEnabled;
+#if MVK_XCODE_12
+	if ([mtlCompOpt respondsToSelector: @selector(setPreserveInvariance:)]) {
+		[mtlCompOpt setPreserveInvariance: preserveInvariance];
+	}
+#endif
+	return [mtlCompOpt autorelease];
+}
+
 // Can't use prefilled Metal command buffers if any of the resource descriptors can be updated after binding.
 bool MVKDevice::shouldPrefillMTLCommandBuffers() {
-	return (_pMVKConfig->prefillMetalCommandBuffers &&
+	return (mvkGetMVKConfiguration()->prefillMetalCommandBuffers &&
 			!(_enabledDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind ||
 			  _enabledDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind ||
 			  _enabledDescriptorIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind ||
@@ -3700,8 +3721,6 @@ MVKDevice::MVKDevice(MVKPhysicalDevice* physicalDevice, const VkDeviceCreateInfo
 
 	_defaultMTLSamplerState = nil;
 
-	initMTLCompileOptions();	// Before command resource factory
-
 	_commandResourceFactory = new MVKCommandResourceFactory(this);
 
 	getInstance()->startAutoGPUCapture(MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE_DEVICE, getMTLDevice());
@@ -3713,10 +3732,9 @@ MVKDevice::MVKDevice(MVKPhysicalDevice* physicalDevice, const VkDeviceCreateInfo
 }
 
 void MVKDevice::initPerformanceTracking() {
-#	ifndef MVK_CONFIG_PERFORMANCE_LOGGING_INLINE
-#   	define MVK_CONFIG_PERFORMANCE_LOGGING_INLINE    0
-#	endif
-	MVK_SET_FROM_ENV_OR_BUILD_BOOL(_logActivityPerformanceInline, MVK_CONFIG_PERFORMANCE_LOGGING_INLINE);
+
+	_isPerformanceTracking = mvkGetMVKConfiguration()->performanceTracking;
+	_logActivityPerformanceInline = mvkGetMVKConfiguration()->logActivityPerformanceInline;
 
 	MVKPerformanceTracker initPerf;
     initPerf.count = 0;
@@ -3762,33 +3780,16 @@ void MVKDevice::initPhysicalDevice(MVKPhysicalDevice* physicalDevice, const VkDe
 	else
 		_physicalDevice = physicalDevice;
 
-	_pMVKConfig = _physicalDevice->_mvkInstance->getMoltenVKConfiguration();
 	_pMetalFeatures = _physicalDevice->getMetalFeatures();
 	_pProperties = &_physicalDevice->_properties;
 	_pLimits = &_pProperties->limits;
 	_pMemoryProperties = &_physicalDevice->_memoryProperties;
 
-	// Indicates whether semaphores should use a MTLFence if available.
-	// Set by the MVK_ALLOW_METAL_FENCES environment variable if MTLFences are available.
-	// This should be a temporary fix after some repair to semaphore handling.
-	_useMTLFenceForSemaphores = false;
-	if (_pMetalFeatures->fences) {
-		MVK_SET_FROM_ENV_OR_BUILD_BOOL(_useMTLFenceForSemaphores, MVK_ALLOW_METAL_FENCES);
-	}
+	// Indicate whether semaphores should use a MTLFence or MTLEvent if they are available.
+	_useMTLFenceForSemaphores = _pMetalFeatures->fences && mvkGetMVKConfiguration()->semaphoreUseMTLFence;
+	_useMTLEventForSemaphores = _pMetalFeatures->events && mvkGetMVKConfiguration()->semaphoreUseMTLEvent;
 
-	// Indicates whether semaphores should use a MTLEvent if available.
-	// Set by the MVK_ALLOW_METAL_EVENTS environment variable if MTLEvents are available.
-	// This should be a temporary fix after some repair to semaphore handling.
-	_useMTLEventForSemaphores = false;
-	if (_pMetalFeatures->events) {
-		MVK_SET_FROM_ENV_OR_BUILD_BOOL(_useMTLEventForSemaphores, MVK_ALLOW_METAL_EVENTS);
-	}
-	MVKLogInfo("Using %s for Vulkan semaphores.", _useMTLEventForSemaphores ? "MTLEvent" : (_useMTLFenceForSemaphores ? "MTLFence" : "emulation"));
-
-#	ifndef MVK_CONFIG_USE_COMMAND_POOLING
-#   	define MVK_CONFIG_USE_COMMAND_POOLING    1
-#	endif
-	MVK_SET_FROM_ENV_OR_BUILD_BOOL(_useCommandPooling, MVK_CONFIG_USE_COMMAND_POOLING);
+	MVKLogInfo("Using %s for Vulkan semaphores.", _useMTLFenceForSemaphores ? "MTLFence" : (_useMTLEventForSemaphores ? "MTLEvent" : "emulation"));
 }
 
 void MVKDevice::enableFeatures(const VkDeviceCreateInfo* pCreateInfo) {
@@ -4067,19 +4068,12 @@ void MVKDevice::reservePrivateData(const VkDeviceCreateInfo* pCreateInfo) {
 	}
 }
 
-void MVKDevice::initMTLCompileOptions() {
-	_mtlCompileOptions = [MTLCompileOptions new];	// retained
-	_mtlCompileOptions.languageVersion = _pMetalFeatures->mslVersionEnum;
-	_mtlCompileOptions.fastMathEnabled = _pMVKConfig->fastMathEnabled;
-}
-
 MVKDevice::~MVKDevice() {
 	for (auto& queues : _queuesByQueueFamilyIndex) {
 		mvkDestroyContainerContents(queues);
 	}
 	_commandResourceFactory->destroy();
 
-	[_mtlCompileOptions release];
     [_globalVisibilityResultMTLBuffer release];
 	[_defaultMTLSamplerState release];
 

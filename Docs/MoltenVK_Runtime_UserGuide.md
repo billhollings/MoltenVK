@@ -7,10 +7,10 @@
 MoltenVK Runtime User Guide
 ===========================
 
-Copyright (c) 2015-2020 [The Brenwill Workshop Ltd.](http://www.brenwill.com)
+Copyright (c) 2015-2021 [The Brenwill Workshop Ltd.](http://www.brenwill.com)
 
-*This document is written in [Markdown](http://en.wikipedia.org/wiki/Markdown) format.
-For best results, use a Markdown reader.*
+[comment]: # "This document is written in Markdown (http://en.wikipedia.org/wiki/Markdown) format."
+[comment]: # "For best results, use a Markdown reader."
 
 
 
@@ -373,12 +373,13 @@ where `HEADER_FILE` is one of the following:
   These functions are exposed in this header for your own purposes such as interacting with *Metal* 
   directly, or simply logging data values.
 
->***Note:*** The functions in `vk_mvk_moltenvk.h` are not supported by the *Vulkan SDK Loader and Layers*
- framework. The opaque Vulkan objects used by the functions in `vk_mvk_moltenvk.h` (`VkInstance`, 
- `VkPhysicalDevice`, `VkShaderModule`, `VKImage`, ...), must have been retrieved directly from **MoltenVK**, 
- and not through the *Vulkan SDK Loader and Layers* framework. The *Vulkan SDK Loader and Layers* framework 
- often changes these opaque objects, and passing them from a higher layer directly to **MoltenVK** will 
- result in undefined behaviour.
+>***Note:*** Except for `vkGetMoltenVKConfigurationMVK()` and `vkSetMoltenVKConfigurationMVK()`, 
+ the functions in `vk_mvk_moltenvk.h` are not supported by the *Vulkan SDK Loader and Layers*
+ framework. The opaque Vulkan objects used by the functions in `vk_mvk_moltenvk.h` (`VkPhysicalDevice`, 
+ `VkShaderModule`, `VKImage`, ...), must have been retrieved directly from **MoltenVK**, and not through 
+ the *Vulkan SDK Loader and Layers* framework. The *Vulkan SDK Loader and Layers* framework often changes 
+ these opaque objects, and passing them from a higher layer directly to **MoltenVK** will result in 
+ undefined behaviour.
 
 
 <a name="moltenvk_config"></a>
@@ -402,12 +403,9 @@ by a corresponding environment variable, or if the environment variable is not s
 by a corresponding build setting at the time **MoltenVK** is compiled. The environment 
 variable and build setting for each configuration parameter share the same name.
 
-There are also a number of additional runtime environment variables that are not included in the
-`MVKConfiguration` structure, but that also control **MoltenVK** behaviour.
-
-See the description of the environment variables and the `MVKConfiguration` structure parameters 
-in the `vk_mvk_moltenvk.h` file for more info about configuring and optimizing **MoltenVK** 
-at runtime or build time.
+See the description of the `MVKConfiguration` structure parameters and corresponding environment 
+variables in the `vk_mvk_moltenvk.h` file for more info about configuring and optimizing 
+**MoltenVK** at runtime or build time.
 
 
 <a name="shaders"></a>
@@ -605,5 +603,7 @@ This section documents the known limitations in this version of **MoltenVK**.
 
 - Since **MoltenVK** is an implementation of *Vulkan* functionality, it does not load 
   *Vulkan Layers* on its own. In order to use *Vulkan Layers*, such as the validation layers, 
-  use the *Vulkan Loader and Layers* from the [LunarG Vulkan SDK](https://vulkan.lunarg.com).
+  use the *Vulkan Loader and Layers* from the *[Vulkan SDK](https://vulkan.lunarg.com/sdk/home)*. 
+  Refer to the *Vulkan SDK [Getting Started](https://vulkan.lunarg.com/doc/sdk/latest/mac/getting_started.html)* 
+  document for more info.
 

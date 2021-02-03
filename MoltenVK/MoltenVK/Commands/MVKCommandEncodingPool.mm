@@ -1,7 +1,7 @@
 /*
  * MVKCommandEncodingPool.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,7 +77,10 @@ id<MTLDepthStencilState> MVKCommandEncodingPool::getMTLDepthStencilState(bool us
 	MVK_ENC_REZ_ACCESS(_cmdClearDefaultDepthStencilState, newMTLDepthStencilState(useDepth, useStencil));
 }
 
-const MVKMTLBufferAllocation* MVKCommandEncodingPool::acquireMTLBufferAllocation(NSUInteger length) {
+const MVKMTLBufferAllocation* MVKCommandEncodingPool::acquireMTLBufferAllocation(NSUInteger length, bool isDedicated) {
+    if (isDedicated) {
+        return _dedicatedMtlBufferAllocator.acquireMTLBufferRegion(length);
+    }
     return _mtlBufferAllocator.acquireMTLBufferRegion(length);
 }
 
@@ -146,6 +149,10 @@ id<MTLComputePipelineState> MVKCommandEncodingPool::getCmdCopyQueryPoolResultsMT
 	MVK_ENC_REZ_ACCESS(_mtlCopyQueryPoolResultsComputePipelineState, newCmdCopyQueryPoolResultsMTLComputePipelineState(_commandPool));
 }
 
+id<MTLComputePipelineState> MVKCommandEncodingPool::getAccumulateOcclusionQueryResultsMTLComputePipelineState() {
+	MVK_ENC_REZ_ACCESS(_mtlAccumOcclusionQueryResultsComputePipelineState, newAccumulateOcclusionQueryResultsMTLComputePipelineState(_commandPool));
+}
+
 void MVKCommandEncodingPool::clear() {
 	lock_guard<mutex> lock(_lock);
 	destroyMetalResources();
@@ -155,7 +162,8 @@ void MVKCommandEncodingPool::clear() {
 #pragma mark Construction
 
 MVKCommandEncodingPool::MVKCommandEncodingPool(MVKCommandPool* commandPool) : _commandPool(commandPool),
-    _mtlBufferAllocator(commandPool->getDevice(), commandPool->getDevice()->_pMetalFeatures->maxMTLBufferSize, true) {
+    _mtlBufferAllocator(commandPool->getDevice(), commandPool->getDevice()->_pMetalFeatures->maxMTLBufferSize, true),
+    _dedicatedMtlBufferAllocator(commandPool->getDevice(), commandPool->getDevice()->_pMetalFeatures->maxQueryBufferSize, true, true) {
 }
 
 MVKCommandEncodingPool::~MVKCommandEncodingPool() {
@@ -233,5 +241,8 @@ void MVKCommandEncodingPool::destroyMetalResources() {
 
     [_mtlCopyQueryPoolResultsComputePipelineState release];
     _mtlCopyQueryPoolResultsComputePipelineState = nil;
+
+    [_mtlAccumOcclusionQueryResultsComputePipelineState release];
+    _mtlAccumOcclusionQueryResultsComputePipelineState = nil;
 }
 

@@ -1,7 +1,7 @@
 /*
  * MVKShaderModule.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,6 @@
 #include "MVKShaderModule.h"
 #include "MVKPipeline.h"
 #include "MVKFoundation.h"
-#include "MVKLogging.h"
-#include "vk_mvk_moltenvk.h"
 #include <string>
 
 using namespace std;
@@ -137,8 +135,8 @@ MVKShaderLibrary::MVKShaderLibrary(MVKVulkanAPIDeviceObject* owner,
 								   const SPIRVToMSLConversionResults& shaderConversionResults) : _owner(owner) {
 	MVKShaderLibraryCompiler* slc = new MVKShaderLibraryCompiler(_owner);
 
-	NSString* nsSrc = [[NSString alloc] initWithUTF8String: mslSourceCode.c_str()];	// temp retained
-	_mtlLibrary = slc->newMTLLibrary(nsSrc);	// retained
+	NSString* nsSrc = [[NSString alloc] initWithUTF8String: mslSourceCode.c_str()];					// temp retained
+	_mtlLibrary = slc->newMTLLibrary(nsSrc, shaderConversionResults);	// retained
 	[nsSrc release];	// release temp string
 
 	slc->destroy();
@@ -275,7 +273,7 @@ MVKMTLFunction MVKShaderModule::getMTLFunction(SPIRVToMSLConversionConfiguration
 }
 
 bool MVKShaderModule::convert(SPIRVToMSLConversionConfiguration* pContext) {
-	bool shouldLogCode = _device->_pMVKConfig->debugMode;
+	bool shouldLogCode = mvkGetMVKConfiguration()->debugMode;
 	bool shouldLogEstimatedGLSL = shouldLogCode;
 
 	// If the SPIR-V converter does not have any code, but the GLSL converter does,
@@ -417,12 +415,14 @@ MVKShaderModule::~MVKShaderModule() {
 #pragma mark -
 #pragma mark MVKShaderLibraryCompiler
 
-id<MTLLibrary> MVKShaderLibraryCompiler::newMTLLibrary(NSString* mslSourceCode) {
+id<MTLLibrary> MVKShaderLibraryCompiler::newMTLLibrary(NSString* mslSourceCode,
+													   const SPIRVToMSLConversionResults& shaderConversionResults) {
 	unique_lock<mutex> lock(_completionLock);
 
 	compile(lock, ^{
 		[_owner->getMTLDevice() newLibraryWithSource: mslSourceCode
-											 options: _owner->getDevice()->getMTLCompileOptions()
+											 options: _owner->getDevice()->getMTLCompileOptions(shaderConversionResults.entryPoint.supportsFastMath,
+																								shaderConversionResults.isPositionInvariant)
 								   completionHandler: ^(id<MTLLibrary> mtlLib, NSError* error) {
 									   bool isLate = compileComplete(mtlLib, error);
 									   if (isLate) { destroy(); }

@@ -6,10 +6,10 @@
 
 #What's New in MoltenVK
 
-Copyright (c) 2015-2020 [The Brenwill Workshop Ltd.](http://www.brenwill.com)
+Copyright (c) 2015-2021 [The Brenwill Workshop Ltd.](http://www.brenwill.com)
 
-*This document is written in [Markdown](http://en.wikipedia.org/wiki/Markdown) format.
-For best results, use a Markdown reader.*
+[comment]: # "This document is written in Markdown (http://en.wikipedia.org/wiki/Markdown) format."
+[comment]: # "For best results, use a Markdown reader."
 
 
 
@@ -18,20 +18,27 @@ MoltenVK 1.1.2
 
 Released TBD
 
-- Add support for using Metal argument buffers for shader resources, by setting 
-  `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS` environment variable (enabled by default).
-- To improve performance during descriptor set allocations, preallocate memory for descriptor sets, descriptors, 
-  and the Metal argument buffer (one `MTLBuffer` per descriptor pool) during `vkCreateDescriptorPool()`.
-- Add support for embedding inline uniform content directly in Metal argument buffers, by setting 
-  `MVK_CONFIG_EMBED_INLINE_BLOCKS_IN_METAL_ARGUMENT_BUFFER` environment variable (disabled by default).
+- Advertise support for `shaderInt64` feature.
 - Support fast math on MSL compiler via `MVKConfiguration::fastMathEnabled` configuration 
-  setting and `MVK_CONFIG_FAST_MATH_ENABLED` environment variable (both disabled by default).
-  - Add ability to automatically capture first GPU frame by setting `MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE` to `2`.
-  - Add `MVKBitArray` and remove `MVKVector`.
+  setting and `MVK_CONFIG_FAST_MATH_ENABLED` environment variable (enabled by default).
+- Support compiling MSL with position invariance if indicated in SPIRV shader.
+- `vkGetMoltenVKConfigurationMVK()` and `vkSetMoltenVKConfigurationMVK()` functions
+  can now be used with a `VkInstance` from another Vulkan layer, or with a `VK_NULL_HANDLE VkInstance`.
+- `MVKConfiguration` extended to cover all MoltenVK environment variables.
+- Add support for using Metal argument buffers for shader resources, by setting 
+`MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS` environment variable (enabled by default).
+- To improve performance during descriptor set allocations, preallocate memory for descriptor sets, descriptors, 
+and the Metal argument buffer (one `MTLBuffer` per descriptor pool) during `vkCreateDescriptorPool()`.
+- Add support for embedding inline uniform content directly in Metal argument buffers, by setting 
+`MVK_CONFIG_EMBED_INLINE_BLOCKS_IN_METAL_ARGUMENT_BUFFER` environment variable (disabled by default).
+- Add ability to automatically capture first GPU frame by setting `MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE` to `2`.
+- Add `MVKBitArray` and remove `MVKVector`.
 - Support _GitHub Actions_ for CI builds on pull requests.
 - Remove support for _Travis-CI_.
 - `Makefile` and `fetchDependencies` support `xcpretty` (if available)
 - Update `VK_MVK_MOLTENVK_SPEC_VERSION` to `30`.
+- Update copyright notices to year 2021.
+- Update Xcode build settings check to _Xcode 12.3_.
 
 
 

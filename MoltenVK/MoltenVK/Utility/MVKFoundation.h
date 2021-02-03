@@ -1,7 +1,7 @@
 /*
  * MVKFoundation.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,7 +87,8 @@ typedef enum : uint8_t {
     kMVKCommandUseDispatch,                 /**< vkCmdDispatch. */
     kMVKCommandUseTessellationVertexTessCtl,/**< vkCmdDraw* - vertex and tessellation control stages. */
 	kMVKCommandUseMultiviewInstanceCountAdjust,/**< vkCmdDrawIndirect* - adjust instance count for multiview. */
-    kMVKCommandUseCopyQueryPoolResults      /**< vkCmdCopyQueryPoolResults. */
+    kMVKCommandUseCopyQueryPoolResults,     /**< vkCmdCopyQueryPoolResults. */
+    kMVKCommandUseAccumOcclusionQuery       /**< Any command terminating a Metal render pass with active visibility buffer. */
 } MVKCommandUse;
 
 /** Represents a given stage of a graphics pipeline. */

@@ -1,7 +1,7 @@
 /*
  * mvk_datatypes.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ MVK_PUBLIC_SYMBOL MTLTextureType mvkMTLTextureTypeFromVkImageType(VkImageType vk
 																  bool isMultisample) {
 	switch (vkImageType) {
 		case VK_IMAGE_TYPE_3D: return MTLTextureType3D;
-		case VK_IMAGE_TYPE_1D: return (mvkTreatTexture1DAs2D()
+		case VK_IMAGE_TYPE_1D: return (mvkGetMVKConfiguration()->texture1DAs2D
 									   ? mvkMTLTextureTypeFromVkImageType(VK_IMAGE_TYPE_2D, arraySize, isMultisample)
 									   : (arraySize > 1 ? MTLTextureType1DArray : MTLTextureType1D));
 		case VK_IMAGE_TYPE_2D:
@@ -176,8 +176,8 @@ MVK_PUBLIC_SYMBOL MTLTextureType mvkMTLTextureTypeFromVkImageViewType(VkImageVie
 		case VK_IMAGE_VIEW_TYPE_3D:			return MTLTextureType3D;
 		case VK_IMAGE_VIEW_TYPE_CUBE:		return MTLTextureTypeCube;
 		case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:	return MTLTextureTypeCubeArray;
-		case VK_IMAGE_VIEW_TYPE_1D:			return mvkTreatTexture1DAs2D() ? mvkMTLTextureTypeFromVkImageViewType(VK_IMAGE_VIEW_TYPE_2D, isMultisample) : MTLTextureType1D;
-		case VK_IMAGE_VIEW_TYPE_1D_ARRAY:	return mvkTreatTexture1DAs2D() ? mvkMTLTextureTypeFromVkImageViewType(VK_IMAGE_VIEW_TYPE_2D_ARRAY, isMultisample) : MTLTextureType1DArray;
+		case VK_IMAGE_VIEW_TYPE_1D:			return mvkGetMVKConfiguration()->texture1DAs2D ? mvkMTLTextureTypeFromVkImageViewType(VK_IMAGE_VIEW_TYPE_2D, isMultisample) : MTLTextureType1D;
+		case VK_IMAGE_VIEW_TYPE_1D_ARRAY:	return mvkGetMVKConfiguration()->texture1DAs2D ? mvkMTLTextureTypeFromVkImageViewType(VK_IMAGE_VIEW_TYPE_2D_ARRAY, isMultisample) : MTLTextureType1DArray;
 
 		case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
 #if MVK_MACOS
@@ -736,7 +736,7 @@ MVK_PUBLIC_SYMBOL MTLStorageMode mvkMTLStorageModeFromVkMemoryPropertyFlags(VkMe
 
 	// If not visible to the host: Private
 	if ( !mvkAreAllFlagsEnabled(vkFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ) {
-#if MVK_IOS_OR_TVOS || MVK_MACOS_APPLE_SILICON
+#if MVK_APPLE_SILICON
 		// iOS: If lazily allocated, Memoryless
 		if (mvkAreAllFlagsEnabled(vkFlags, VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)) {
 			return MTLStorageModeMemoryless;
@@ -766,18 +766,3 @@ MVK_PUBLIC_SYMBOL MTLResourceOptions mvkMTLResourceOptions(MTLStorageMode mtlSto
 														   MTLCPUCacheMode mtlCPUCacheMode) {
 	return (mtlStorageMode << MTLResourceStorageModeShift) | (mtlCPUCacheMode << MTLResourceCPUCacheModeShift);
 }
-
-static bool _mvkTexture1DAs2D = MVK_CONFIG_TEXTURE_1D_AS_2D;
-static bool _mvkTexture1DAs2DInitialized = false;
-
-// Returns environment variable indicating whether to use Metal 2D textures for 1D textures.
-// We do this once lazily instead of in a library constructor function to
-// ensure the NSProcessInfo environment is available when called upon.
-bool mvkTreatTexture1DAs2D() {
-	if ( !_mvkTexture1DAs2DInitialized ) {
-		_mvkTexture1DAs2DInitialized = true;
-		MVK_SET_FROM_ENV_OR_BUILD_INT32(_mvkTexture1DAs2D, MVK_CONFIG_TEXTURE_1D_AS_2D);
-	}
-	return _mvkTexture1DAs2D;
-}
-

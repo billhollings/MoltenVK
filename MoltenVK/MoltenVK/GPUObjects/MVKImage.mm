@@ -1,7 +1,7 @@
 /*
  * MVKImage.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 #include "MVKEnvironment.h"
 #include "MVKFoundation.h"
 #include "MVKOSExtensions.h"
-#include "MVKLogging.h"
 #include "MVKCodec.h"
 #import "MTLTextureDescriptor+MoltenVK.h"
 #import "MTLSamplerDescriptor+MoltenVK.h"
@@ -648,7 +647,7 @@ VkResult MVKImage::getMemoryRequirements(VkMemoryRequirements* pMemoryRequiremen
         mvkDisableFlags(pMemoryRequirements->memoryTypeBits, _device->getPhysicalDevice()->getHostCoherentMemoryTypes());
     }
 #endif
-#if MVK_IOS_OR_TVOS || MVK_MACOS_APPLE_SILICON
+#if MVK_APPLE_SILICON
     // Only transient attachments may use memoryless storage
     if (!mvkAreAllFlagsEnabled(_usage, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) ) {
         mvkDisableFlags(pMemoryRequirements->memoryTypeBits, _device->getPhysicalDevice()->getLazilyAllocatedMemoryTypes());
@@ -984,7 +983,7 @@ VkSampleCountFlagBits MVKImage::validateSamples(const VkImageCreateInfo* pCreate
 	if (validSamples == VK_SAMPLE_COUNT_1_BIT) { return validSamples; }
 
 	// Don't use getImageType() because it hasn't been set yet.
-	if ( !((pCreateInfo->imageType == VK_IMAGE_TYPE_2D) || ((pCreateInfo->imageType == VK_IMAGE_TYPE_1D) && mvkTreatTexture1DAs2D())) ) {
+	if ( !((pCreateInfo->imageType == VK_IMAGE_TYPE_2D) || ((pCreateInfo->imageType == VK_IMAGE_TYPE_1D) && mvkGetMVKConfiguration()->texture1DAs2D)) ) {
 		setConfigurationResult(reportError(VK_ERROR_FEATURE_NOT_PRESENT, "vkCreateImage() : Under Metal, multisampling can only be used with a 2D image type. Setting sample count to 1."));
 		validSamples = VK_SAMPLE_COUNT_1_BIT;
 	}
@@ -1477,7 +1476,7 @@ MVKImageViewPlane::MVKImageViewPlane(MVKImageView* imageView,
 																				  _imageView->_usage,
 																				  _imageView,
 																				  _device->_pMetalFeatures->nativeTextureSwizzle,
-																				  _device->_pMVKConfig->fullImageViewSwizzle,
+																				  mvkGetMVKConfiguration()->fullImageViewSwizzle,
 																				  _mtlPixFmt,
 																				  useSwizzle));
     _packedSwizzle = (useSwizzle) ? mvkPackSwizzle(pCreateInfo->components) : 0;
@@ -1669,7 +1668,7 @@ VkResult MVKImageView::validateSwizzledMTLPixelFormat(const VkImageViewCreateInf
 
 		switch (mtlPixFmt) {
 			case MTLPixelFormatR8Unorm:
-#if MVK_MACOS_APPLE_SILICON || MVK_IOS_OR_TVOS
+#if MVK_APPLE_SILICON
 			case MTLPixelFormatR8Unorm_sRGB:
 #endif
 			case MTLPixelFormatR8Snorm:
@@ -1689,7 +1688,7 @@ VkResult MVKImageView::validateSwizzledMTLPixelFormat(const VkImageViewCreateInf
 				break;
 
 			case MTLPixelFormatRG8Unorm:
-#if MVK_MACOS_APPLE_SILICON || MVK_IOS_OR_TVOS
+#if MVK_APPLE_SILICON
 			case MTLPixelFormatRG8Unorm_sRGB:
 #endif
 			case MTLPixelFormatRG8Snorm:

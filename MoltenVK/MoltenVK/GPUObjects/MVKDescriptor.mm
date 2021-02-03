@@ -1,7 +1,7 @@
 /*
  * MVKDescriptor.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -924,9 +924,6 @@ uint8_t* MVKInlineUniformBlockDescriptor::getData() {
 // We do this once lazily instead of in a library constructor function to
 // ensure the NSProcessInfo environment is available when called upon.
 bool MVKInlineUniformBlockDescriptor::shouldEmbedInlineBlocksInMetalAgumentBuffer() {
-#	ifndef MVK_CONFIG_EMBED_INLINE_BLOCKS_IN_METAL_ARGUMENT_BUFFER
-#   	define MVK_CONFIG_EMBED_INLINE_BLOCKS_IN_METAL_ARGUMENT_BUFFER    0
-#	endif
 	static bool _shouldEmbedInlineBlocksInMetalAgumentBuffer = MVK_CONFIG_EMBED_INLINE_BLOCKS_IN_METAL_ARGUMENT_BUFFER;
 	static bool _shouldEmbedInlineBlocksInMetalAgumentBufferInitialized = false;
 	if ( !_shouldEmbedInlineBlocksInMetalAgumentBufferInitialized ) {

@@ -1,7 +1,7 @@
 /*
  * MTLRenderPassDepthAttachmentDescriptor+MoltenVK.m
  *
- * Copyright (c) 2020 Chip Davis for CodeWeavers
+ * Copyright (c) 2020-2021 Chip Davis for CodeWeavers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,21 @@
 
 
 #include "MTLRenderPassDepthAttachmentDescriptor+MoltenVK.h"
-#include "MVKEnvironment.h"
+
 
 @implementation MTLRenderPassDepthAttachmentDescriptor (MoltenVK)
 
 -(MTLMultisampleDepthResolveFilter) depthResolveFilterMVK {
-
 	if ( [self respondsToSelector: @selector(depthResolveFilter)] ) {
 		return self.depthResolveFilter;
 	}
 	return MTLMultisampleDepthResolveFilterSample0;
-
 }
 
 -(void) setDepthResolveFilterMVK: (MTLMultisampleDepthResolveFilter) filter {
-
 	if ( [self respondsToSelector: @selector(setDepthResolveFilter:)] ) {
 		self.depthResolveFilter = filter;
 	}
-
 }
 
 @end

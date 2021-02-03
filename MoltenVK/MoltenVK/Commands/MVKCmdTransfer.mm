@@ -1,7 +1,7 @@
 /*
  * MVKCmdTransfer.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@
 #include "MVKRenderPass.h"
 #include "MTLRenderPassDescriptor+MoltenVK.h"
 #include "MVKEnvironment.h"
-#include "MVKLogging.h"
 #include "mvk_datatypes.hpp"
 #include <algorithm>
+#include <sys/mman.h>
 
 
 #pragma mark -
@@ -696,11 +696,13 @@ void MVKCmdResolveImage<N>::encode(MVKCommandEncoder* cmdEncoder) {
 			uint32_t layCnt = vkIR.dstSubresource.layerCount;
 			mtlResolveSlices[sliceCnt].dstSubresource.layerCount = 1;
 			mtlResolveSlices[sliceCnt].srcSubresource.layerCount = 1;
+			sliceCnt++;
 			for (uint32_t layIdx = 1; layIdx < layCnt; layIdx++) {
-				MVKMetalResolveSlice& rslvSlice = mtlResolveSlices[sliceCnt++];
-				rslvSlice = mtlResolveSlices[sliceCnt - 2];
+				MVKMetalResolveSlice& rslvSlice = mtlResolveSlices[sliceCnt];
+				rslvSlice = mtlResolveSlices[sliceCnt - 1];
 				rslvSlice.dstSubresource.baseArrayLayer++;
 				rslvSlice.srcSubresource.baseArrayLayer++;
+				sliceCnt++;
 			}
 		}
 	}
@@ -949,7 +951,7 @@ void MVKCmdBufferImageCopy<N>::encode(MVKCommandEncoder* cmdEncoder) {
             }
         }
 
-#if MVK_IOS_OR_TVOS || MVK_MACOS_APPLE_SILICON
+#if MVK_APPLE_SILICON
 		if (pixFmts->isPVRTCFormat(mtlPixFmt)) {
 			blitOptions |= MTLBlitOptionRowLinearPVRTC;
 		}
@@ -1614,7 +1616,10 @@ void MVKCmdUpdateBuffer::encode(MVKCommandEncoder* cmdEncoder) {
 
     // Copy data to the source MTLBuffer
     MVKMTLBufferAllocation* srcMTLBufferAlloc = (MVKMTLBufferAllocation*)cmdEncoder->getCommandEncodingPool()->acquireMTLBufferAllocation(_dataSize);
-    memcpy(srcMTLBufferAlloc->getContents(), _srcDataCache.data(), _dataSize);
+    void* pBuffData = srcMTLBufferAlloc->getContents();
+    mlock(pBuffData, _dataSize);
+    memcpy(pBuffData, _srcDataCache.data(), _dataSize);
+    munlock(pBuffData, _dataSize);
 
     [mtlBlitEnc copyFromBuffer: srcMTLBufferAlloc->_mtlBuffer
                   sourceOffset: srcMTLBufferAlloc->_offset

@@ -1,7 +1,7 @@
 /*
  * MVKDevice.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@
 #include "MVKPixelFormats.h"
 #include "MVKOSExtensions.h"
 #include "mvk_datatypes.hpp"
-#include "vk_mvk_moltenvk.h"
 #include <string>
 #include <mutex>
 
@@ -322,6 +321,10 @@ public:
 		}
 	}
 
+	/** Returns whether the MSL version is supported on this device. */
+	inline bool mslVersionIsAtLeast(MTLLanguageVersion minVer) { return _metalFeatures.mslVersionEnum >= minVer; }
+
+
 #pragma mark Construction
 
 	/** Constructs an instance wrapping the specified Vulkan instance and Metal device. */
@@ -346,6 +349,7 @@ public:
 
 protected:
 	friend class MVKDevice;
+	friend class MVKDeviceTrackingMixin;
 
 	void propagateDebugName() override {}
 	MTLFeatureSet getMaximalMTLFeatureSet();
@@ -386,6 +390,7 @@ protected:
 	uint32_t _lazilyAllocatedMemoryTypes;
 	VkExternalMemoryProperties _mtlBufferExternalMemoryProperties;
 	VkExternalMemoryProperties _mtlTextureExternalMemoryProperties;
+	bool _useMetalArgumentBuffers;
 };
 
 
@@ -611,7 +616,7 @@ public:
 	 * number of nanoseconds between the two calls. The convenience function mvkGetElapsedMilliseconds()
 	 * can be used to perform this calculation.
      */
-    inline uint64_t getPerformanceTimestamp() { return _pMVKConfig->performanceTracking ? mvkGetTimestamp() : 0; }
+    inline uint64_t getPerformanceTimestamp() { return _isPerformanceTracking ? mvkGetTimestamp() : 0; }
 
     /**
      * If performance is being tracked, adds the performance for an activity with a duration
@@ -621,7 +626,7 @@ public:
      */
     inline void addActivityPerformance(MVKPerformanceTracker& activityTracker,
 									   uint64_t startTime, uint64_t endTime = 0) {
-		if (_pMVKConfig->performanceTracking) {
+		if (_isPerformanceTracking) {
 			updateActivityPerformance(activityTracker, startTime, endTime);
 
 			// Log call not locked. Very minor chance that the tracker data will be updated during log call,
@@ -645,8 +650,14 @@ public:
 	/** Returns the underlying Metal device. */
 	inline id<MTLDevice> getMTLDevice() { return _physicalDevice->getMTLDevice(); }
 
-	/** Returns standard compilation options to be used when compiling MSL shaders. */
-	inline MTLCompileOptions* getMTLCompileOptions() { return _mtlCompileOptions; }
+	/**
+	 * Returns an autoreleased options object to be used when compiling MSL shaders.
+	 * The useFastMath parameter is and-combined with MVKConfiguration::fastMathEnabled
+	 * to determine whether to enable fast math optimizations in the compiled shader.
+	 * The preserveInvariance parameter indicates that the shader requires the position
+	 * output invariance across invocations (typically for the position output).
+	 */
+	MTLCompileOptions* getMTLCompileOptions(bool useFastMath = true, bool preserveInvariance = false);
 
 	/** Returns the Metal vertex buffer index to use for the specified vertex attribute binding number.  */
 	uint32_t getMetalBufferIndexForVertexAttributeBinding(uint32_t binding);
@@ -685,9 +696,6 @@ public:
 
 
 #pragma mark Properties directly accessible
-
-	/** Pointer to the MoltenVK configuration settings. */
-	const MVKConfiguration* _pMVKConfig;
 
 	/** Device features available and enabled. */
 	const VkPhysicalDeviceFeatures _enabledFeatures;
@@ -765,7 +773,6 @@ protected:
 	void initPhysicalDevice(MVKPhysicalDevice* physicalDevice, const VkDeviceCreateInfo* pCreateInfo);
 	void initQueues(const VkDeviceCreateInfo* pCreateInfo);
 	void reservePrivateData(const VkDeviceCreateInfo* pCreateInfo);
-	void initMTLCompileOptions();
 	void enableFeatures(const VkDeviceCreateInfo* pCreateInfo);
 	void enableFeatures(const VkBool32* pEnable, const VkBool32* pRequested, const VkBool32* pAvailable, uint32_t count);
 	void enableExtensions(const VkDeviceCreateInfo* pCreateInfo);
@@ -778,7 +785,6 @@ protected:
 
 	MVKPhysicalDevice* _physicalDevice;
     MVKCommandResourceFactory* _commandResourceFactory;
-	MTLCompileOptions* _mtlCompileOptions;
 	MVKSmallVector<MVKSmallVector<MVKQueue*, kMVKQueueCountPerQueueFamily>, kMVKQueueFamilyCount> _queuesByQueueFamilyIndex;
 	MVKSmallVector<MVKResource*, 256> _resources;
 	MVKSmallVector<MVKPrivateDataSlot*> _privateDataSlots;
@@ -794,8 +800,8 @@ protected:
     std::mutex _vizLock;
 	bool _useMTLFenceForSemaphores;
 	bool _useMTLEventForSemaphores;
-	bool _useCommandPooling;
 	bool _logActivityPerformanceInline;
+	bool _isPerformanceTracking;
 };
 
 
@@ -823,7 +829,7 @@ public:
 	inline MVKPixelFormats* getPixelFormats() { return _device->getPixelFormats(); }
 
 	/** Returns whether the device supports using Metal argument buffers. */
-	inline bool supportsMetalArgumentBuffers() const  { return _device->_pMetalFeatures->argumentBuffers; };
+	inline bool supportsMetalArgumentBuffers() const  { return _device->getPhysicalDevice()->_useMetalArgumentBuffers; };
 
 	/** Constructs an instance for the specified device. */
     MVKDeviceTrackingMixin(MVKDevice* device) : _device(device) { assert(_device); }

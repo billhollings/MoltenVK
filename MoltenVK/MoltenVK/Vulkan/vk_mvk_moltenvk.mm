@@ -1,7 +1,7 @@
 /*
  * vk_mvk_moltenvk.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,21 +49,22 @@ VkResult mvkCopy(S* pDst, const S* pSrc, size_t* pCopySize) {
 }
 
 MVK_PUBLIC_SYMBOL VkResult vkGetMoltenVKConfigurationMVK(
-	VkInstance                                  instance,
+	VkInstance                                  ignored,
 	MVKConfiguration*                           pConfiguration,
 	size_t*                                     pConfigurationSize) {
 
-	MVKInstance* mvkInst = MVKInstance::getMVKInstance(instance);
-	return mvkCopy(pConfiguration, mvkInst->getMoltenVKConfiguration(), pConfigurationSize);
+	return mvkCopy(pConfiguration, mvkGetMVKConfiguration(), pConfigurationSize);
 }
 
 MVK_PUBLIC_SYMBOL VkResult vkSetMoltenVKConfigurationMVK(
-	VkInstance                                  instance,
+	VkInstance                                  ignored,
 	const MVKConfiguration*                     pConfiguration,
 	size_t*                                     pConfigurationSize) {
 
-	MVKInstance* mvkInst = MVKInstance::getMVKInstance(instance);
-	return mvkCopy((MVKConfiguration*)mvkInst->getMoltenVKConfiguration(), pConfiguration, pConfigurationSize);
+	MVKConfiguration mvkConfig;
+	VkResult rslt = mvkCopy(&mvkConfig, pConfiguration, pConfigurationSize);
+	mvkSetMVKConfiguration(&mvkConfig);
+	return rslt;
 }
 
 MVK_PUBLIC_SYMBOL VkResult vkGetPhysicalDeviceMetalFeaturesMVK(

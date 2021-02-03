@@ -1,7 +1,7 @@
 /*
  * MVKCmdQueries.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ void MVKCmdWriteTimestamp::encode(MVKCommandEncoder* cmdEncoder) {
     uint32_t query = _query;
     if (cmdEncoder->getMultiviewPassIndex() > 0)
         query += cmdEncoder->getSubpass()->getViewCountUpToMetalPass(cmdEncoder->getMultiviewPassIndex() - 1);
-    cmdEncoder->markTimestamp(_queryPool, query);
+    _queryPool->endQuery(query, cmdEncoder);
 }
 
 
@@ -112,6 +112,7 @@ VkResult MVKCmdResetQueryPool::setContent(MVKCommandBuffer* cmdBuff,
 }
 
 void MVKCmdResetQueryPool::encode(MVKCommandEncoder* cmdEncoder) {
+    cmdEncoder->resetQueries(_queryPool, _query, _queryCount);
     _queryPool->resetResults(_query, _queryCount, cmdEncoder);
 }
 

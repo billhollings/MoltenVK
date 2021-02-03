@@ -1,7 +1,7 @@
 /*
  * MVKDeviceMemory.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ public:
 
 	/** Returns whether the memory is accessible from the host. */
     inline bool isMemoryHostAccessible() {
-#if MVK_IOS_OR_TVOS || MVK_MACOS_APPLE_SILICON
+#if MVK_APPLE_SILICON
         if (_mtlStorageMode == MTLStorageModeMemoryless)
             return false;
 #endif

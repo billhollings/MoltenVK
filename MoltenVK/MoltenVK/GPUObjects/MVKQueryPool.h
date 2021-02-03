@@ -1,7 +1,7 @@
 /*
  * MVKQueryPool.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -143,6 +143,7 @@ protected:
 class MVKTimestampQueryPool : public MVKQueryPool {
 
 public:
+    void endQuery(uint32_t query, MVKCommandEncoder* cmdEncoder) override;
     void finishQueries(const MVKArrayRef<uint32_t>& queries) override;
 
 

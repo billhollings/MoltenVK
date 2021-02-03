@@ -1,7 +1,7 @@
 /*
  * MVKMTLBufferAllocation.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
  */
 
 #include "MVKMTLBufferAllocation.h"
-#include "MVKLogging.h"
 #include <algorithm>
 
 
@@ -52,11 +51,11 @@ void MVKMTLBufferAllocationPool::addMTLBuffer() {
 }
 
 
-MVKMTLBufferAllocationPool::MVKMTLBufferAllocationPool(MVKDevice* device, NSUInteger allocationLength)
+MVKMTLBufferAllocationPool::MVKMTLBufferAllocationPool(MVKDevice* device, NSUInteger allocationLength, bool isDedicated)
         : MVKObjectPool<MVKMTLBufferAllocation>(true) {
     _device = device;
     _allocationLength = allocationLength;
-    _mtlBufferLength = _allocationLength * calcMTLBufferAllocationCount();
+    _mtlBufferLength = _allocationLength * (isDedicated ? 1 : calcMTLBufferAllocationCount());
     _nextOffset = _mtlBufferLength;     // Force a MTLBuffer to be added on first access
 }
 
@@ -87,10 +86,14 @@ const MVKMTLBufferAllocation* MVKMTLBufferAllocator::acquireMTLBufferRegion(NSUI
     // Convert max length to the next power-of-two exponent to use as a lookup
     NSUInteger p2Exp = mvkPowerOfTwoExponent(length);
 	MVKMTLBufferAllocationPool* pRP = _regionPools[p2Exp];
-	return _makeThreadSafe ? pRP->acquireObjectSafely() : pRP->acquireObject();
+	const MVKMTLBufferAllocation* region = _makeThreadSafe ? pRP->acquireObjectSafely() : pRP->acquireObject();
+	if (region) {
+		[region->_mtlBuffer setPurgeableState: MTLPurgeableStateVolatile];
+	}
+	return region;
 }
 
-MVKMTLBufferAllocator::MVKMTLBufferAllocator(MVKDevice* device, NSUInteger maxRegionLength, bool makeThreadSafe) : MVKBaseDeviceObject(device) {
+MVKMTLBufferAllocator::MVKMTLBufferAllocator(MVKDevice* device, NSUInteger maxRegionLength, bool makeThreadSafe, bool isDedicated) : MVKBaseDeviceObject(device) {
 	_maxAllocationLength = std::max<NSUInteger>(maxRegionLength, _device->_pMetalFeatures->mtlBufferAlignment);
 	_makeThreadSafe = makeThreadSafe;
 
@@ -101,7 +104,7 @@ MVKMTLBufferAllocator::MVKMTLBufferAllocator(MVKDevice* device, NSUInteger maxRe
     _regionPools.reserve(maxP2Exp + 1);
     NSUInteger allocLen = 1;
     for (uint32_t p2Exp = 0; p2Exp <= maxP2Exp; p2Exp++) {
-        _regionPools.push_back(new MVKMTLBufferAllocationPool(device, allocLen));
+        _regionPools.push_back(new MVKMTLBufferAllocationPool(device, allocLen, isDedicated));
         allocLen <<= 1;
     }
 }

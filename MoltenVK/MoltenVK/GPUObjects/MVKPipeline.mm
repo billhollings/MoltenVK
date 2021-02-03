@@ -1,7 +1,7 @@
 /*
  * MVKPipeline.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -237,7 +237,7 @@ MVKPipeline::MVKPipeline(MVKDevice* device, MVKPipelineCache* pipelineCache, MVK
 	MVKVulkanAPIDeviceObject(device),
 	_pipelineCache(pipelineCache),
 	_pushConstantsMTLResourceIndexes(layout->getPushConstantBindings()),
-	_fullImageViewSwizzle(device->_pMVKConfig->fullImageViewSwizzle),
+	_fullImageViewSwizzle(mvkGetMVKConfiguration()->fullImageViewSwizzle),
 	_mtlArgumentEncoders(layout->getDescriptorSetCount()) {}
 
 MVKPipeline::~MVKPipeline() {
@@ -1366,13 +1366,6 @@ bool MVKGraphicsPipeline::addVertexInputToPipeline(T* inputDesc,
 	return true;
 }
 
-template bool MVKGraphicsPipeline::addVertexInputToPipeline<MTLVertexDescriptor>(MTLVertexDescriptor* inputDesc,
-																				 const VkPipelineVertexInputStateCreateInfo* pVI,
-																				 const SPIRVToMSLConversionConfiguration& shaderContext);
-template bool MVKGraphicsPipeline::addVertexInputToPipeline<MTLStageInputOutputDescriptor>(MTLStageInputOutputDescriptor* inputDesc,
-																						   const VkPipelineVertexInputStateCreateInfo* pVI,
-																						   const SPIRVToMSLConversionConfiguration& shaderContext);
-
 // Adjusts step rates for per-instance vertex buffers based on the number of views to be drawn.
 void MVKGraphicsPipeline::adjustVertexInputForMultiview(MTLVertexDescriptor* inputDesc, const VkPipelineVertexInputStateCreateInfo* pVI, uint32_t viewCount, uint32_t oldViewCount) {
 	uint32_t vbCnt = pVI->vertexBindingDescriptionCount;
@@ -1535,7 +1528,7 @@ void MVKGraphicsPipeline::initMVKShaderConverterContext(SPIRVToMSLConversionConf
 	shaderContext.options.mslOptions.texture_buffer_native = _device->_pMetalFeatures->textureBuffers;
 	shaderContext.options.mslOptions.argument_buffers = supportsMetalArgumentBuffers();
 	shaderContext.options.mslOptions.force_active_argument_buffer_resources = supportsMetalArgumentBuffers();
-	shaderContext.options.mslOptions.pad_argument_buffer_resources = supportsMetalArgumentBuffers();
+//	shaderContext.options.mslOptions.pad_argument_buffer_resources = supportsMetalArgumentBuffers();
 
     MVKPipelineLayout* layout = (MVKPipelineLayout*)pCreateInfo->layout;
     layout->populateShaderConverterContext(shaderContext);
@@ -1561,11 +1554,11 @@ void MVKGraphicsPipeline::initMVKShaderConverterContext(SPIRVToMSLConversionConf
 		}
 	}
 
-	shaderContext.options.mslOptions.texture_1D_as_2D = mvkTreatTexture1DAs2D();
+	shaderContext.options.mslOptions.texture_1D_as_2D = mvkGetMVKConfiguration()->texture1DAs2D;
     shaderContext.options.mslOptions.enable_point_size_builtin = isRenderingPoints(pCreateInfo) || reflectData.pointMode;
 	shaderContext.options.mslOptions.enable_frag_depth_builtin = pixFmts->isDepthFormat(mtlDSFormat);
 	shaderContext.options.mslOptions.enable_frag_stencil_ref_builtin = pixFmts->isStencilFormat(mtlDSFormat);
-    shaderContext.options.shouldFlipVertexY = _device->_pMVKConfig->shaderConversionFlipVertexY;
+    shaderContext.options.shouldFlipVertexY = mvkGetMVKConfiguration()->shaderConversionFlipVertexY;
     shaderContext.options.mslOptions.swizzle_texture_samples = _fullImageViewSwizzle && !getDevice()->_pMetalFeatures->nativeTextureSwizzle;
     shaderContext.options.mslOptions.tess_domain_origin_lower_left = pTessDomainOriginState && pTessDomainOriginState->domainOrigin == VK_TESSELLATION_DOMAIN_ORIGIN_LOWER_LEFT;
     shaderContext.options.mslOptions.multiview = mvkRendPass->isMultiview();
@@ -1776,11 +1769,11 @@ MVKMTLFunction MVKComputePipeline::getMTLFunction(const VkComputePipelineCreateI
 	shaderContext.options.mslOptions.swizzle_texture_samples = _fullImageViewSwizzle && !getDevice()->_pMetalFeatures->nativeTextureSwizzle;
 	shaderContext.options.mslOptions.texture_buffer_native = _device->_pMetalFeatures->textureBuffers;
 	shaderContext.options.mslOptions.dispatch_base = _allowsDispatchBase;
-	shaderContext.options.mslOptions.texture_1D_as_2D = mvkTreatTexture1DAs2D();
+	shaderContext.options.mslOptions.texture_1D_as_2D = mvkGetMVKConfiguration()->texture1DAs2D;
     shaderContext.options.mslOptions.fixed_subgroup_size = mvkIsAnyFlagEnabled(pSS->flags, VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT_EXT) ? 0 : _device->_pMetalFeatures->maxSubgroupSize;
 	shaderContext.options.mslOptions.argument_buffers = supportsMetalArgumentBuffers();
 	shaderContext.options.mslOptions.force_active_argument_buffer_resources = supportsMetalArgumentBuffers();
-	shaderContext.options.mslOptions.pad_argument_buffer_resources = supportsMetalArgumentBuffers();
+//	shaderContext.options.mslOptions.pad_argument_buffer_resources = supportsMetalArgumentBuffers();
 #if MVK_MACOS
     shaderContext.options.mslOptions.emulate_subgroups = !_device->_pMetalFeatures->simdPermute;
 #endif
@@ -2088,7 +2081,7 @@ namespace SPIRV_CROSS_NAMESPACE {
 				opt.enable_decoration_binding,
 				opt.texture_buffer_native,
 				opt.force_active_argument_buffer_resources,
-				opt.pad_argument_buffer_resources,
+//				opt.pad_argument_buffer_resources,
 				opt.force_native_arrays,
 				opt.enable_clip_distance_user_varying,
 				opt.multi_patch_workgroup,
@@ -2164,7 +2157,8 @@ namespace mvk {
 		archive(ep.mtlFunctionName,
 				ep.workgroupSize.width,
 				ep.workgroupSize.height,
-				ep.workgroupSize.depth);
+				ep.workgroupSize.depth,
+				ep.supportsFastMath);
 	}
 
 	template<class Archive>
@@ -2212,6 +2206,7 @@ namespace mvk {
 	void serialize(Archive & archive, SPIRVToMSLConversionResults& scr) {
 		archive(scr.entryPoint,
 				scr.isRasterizationDisabled,
+				scr.isPositionInvariant,
 				scr.needsSwizzleBuffer,
 				scr.needsOutputBuffer,
 				scr.needsPatchOutputBuffer,

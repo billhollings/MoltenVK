@@ -1,7 +1,7 @@
 /*
  * MVKCommandBuffer.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,10 +92,9 @@ public:
      * Metal requires that a visibility buffer is established when a render pass is created, 
      * but Vulkan permits it to be set during a render pass. When the first occlusion query
      * command is added, it sets this value so that it can be applied when the first renderpass
-     * is begun. The execution of subsequent occlusion query commands may change the visibility
-     * buffer during command execution, and begin a new Metal renderpass.
+     * is begun.
      */
-    id<MTLBuffer> _initialVisibilityResultMTLBuffer;
+    bool _needsVisibilityResultMTLBuffer;
 
 	/** Called when a MVKCmdExecuteCommands is added to this command buffer. */
 	void recordExecuteCommands(const MVKArrayRef<MVKCommandBuffer*> secondaryCommandBuffers);
@@ -383,7 +382,7 @@ public:
     void setComputeBytes(id<MTLComputeCommandEncoder> mtlEncoder, const void* bytes, NSUInteger length, uint32_t mtlBuffIndex);
 
     /** Get a temporary MTLBuffer that will be returned to a pool after the command buffer is finished. */
-    const MVKMTLBufferAllocation* getTempMTLBuffer(NSUInteger length);
+    const MVKMTLBufferAllocation* getTempMTLBuffer(NSUInteger length, bool dedicated = false);
 
     /** Returns the command encoding pool. */
     MVKCommandEncodingPool* getCommandEncodingPool();
@@ -398,6 +397,9 @@ public:
 
     /** Marks a timestamp for the specified query. */
     void markTimestamp(MVKQueryPool* pQueryPool, uint32_t query);
+
+    /** Reset a range of queries. */
+    void resetQueries(MVKQueryPool* pQueryPool, uint32_t firstQuery, uint32_t queryCount);
 
 #pragma mark Dynamic encoding state accessed directly
 
@@ -424,6 +426,9 @@ public:
 
 	/** The current Metal render encoder. */
 	id<MTLRenderCommandEncoder> _mtlRenderEncoder;
+
+	/** The buffer used to hold occlusion query results in a render pass. */
+	const MVKMTLBufferAllocation* _visibilityResultMTLBuffer;
 
     /** Tracks the current graphics pipeline bound to the encoder. */
     MVKPipelineCommandEncoderState _graphicsPipelineState;
@@ -473,7 +478,7 @@ public:
 	MVKCommandEncoder(MVKCommandBuffer* cmdBuffer);
 
 protected:
-    void addActivatedQuery(MVKQueryPool* pQueryPool, uint32_t query);
+    void addActivatedQueries(MVKQueryPool* pQueryPool, uint32_t query, uint32_t queryCount);
     void finishQueries();
 	void setSubpass(MVKCommand* passCmd, VkSubpassContents subpassContents, uint32_t subpassIndex);
 	void clearRenderArea();

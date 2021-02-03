@@ -1,7 +1,7 @@
 /*
  * MVKQueue.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include "MVKFoundation.h"
 #include "MVKOSExtensions.h"
 #include "MVKGPUCapture.h"
-#include "MVKLogging.h"
 
 using namespace std;
 
@@ -39,7 +38,7 @@ id<MTLCommandQueue> MVKQueueFamily::getMTLCommandQueue(uint32_t queueIndex) {
 	id<MTLCommandQueue> mtlQ = _mtlQueues[queueIndex];
 	if ( !mtlQ ) {
 		@autoreleasepool {		// Catch any autoreleased objects created during MTLCommandQueue creation
-			uint32_t maxCmdBuffs = _physicalDevice->getInstance()->getMoltenVKConfiguration()->maxActiveMetalCommandBuffersPerQueue;
+			uint32_t maxCmdBuffs = mvkGetMVKConfiguration()->maxActiveMetalCommandBuffersPerQueue;
 			mtlQ = [_physicalDevice->getMTLDevice() newCommandQueueWithMaxCommandBufferCount: maxCmdBuffs];		// retained
 			_mtlQueues[queueIndex] = mtlQ;
 		}
@@ -157,7 +156,6 @@ MVKQueue::MVKQueue(MVKDevice* device, MVKQueueFamily* queueFamily, uint32_t inde
 	_queueFamily = queueFamily;
 	_index = index;
 	_priority = priority;
-	_nextMTLCmdBuffID = 1;
 
 	initName();
 	initExecQueue();
@@ -174,7 +172,7 @@ void MVKQueue::initName() {
 
 void MVKQueue::initExecQueue() {
 	_execQueue = nil;
-	if ( !_device->_pMVKConfig->synchronousQueueSubmits ) {
+	if ( !mvkGetMVKConfiguration()->synchronousQueueSubmits ) {
 		// Determine the dispatch queue priority
 		dispatch_qos_class_t dqQOS = MVK_DISPATCH_QUEUE_QOS_CLASS;
 		int dqPriority = (1.0 - _priority) * QOS_MIN_RELATIVE_PRIORITY;
@@ -194,12 +192,10 @@ void MVKQueue::initMTLCommandQueue() {
 
 // Initializes Xcode GPU capture scopes
 void MVKQueue::initGPUCaptureScopes() {
-	const MVKConfiguration* pMVKConfig = getInstance()->getMoltenVKConfiguration();
-
 	_submissionCaptureScope = new MVKGPUCaptureScope(this);
 
-	if (_queueFamily->getIndex() == pMVKConfig->defaultGPUCaptureScopeQueueFamilyIndex &&
-		_index == pMVKConfig->defaultGPUCaptureScopeQueueIndex) {
+	if (_queueFamily->getIndex() == mvkGetMVKConfiguration()->defaultGPUCaptureScopeQueueFamilyIndex &&
+		_index == mvkGetMVKConfiguration()->defaultGPUCaptureScopeQueueIndex) {
 		_submissionCaptureScope->makeDefault();
 	}
 	_submissionCaptureScope->beginScope();	// Allow Xcode to capture the first frame if desired.
@@ -228,7 +224,7 @@ MVKQueueSubmission::MVKQueueSubmission(MVKQueue* queue,
 									   uint32_t waitSemaphoreCount,
 									   const VkSemaphore* pWaitSemaphores) {
 	_queue = queue;
-	_trackPerformance = _queue->_device->_pMVKConfig->performanceTracking;
+	_trackPerformance = mvkGetMVKConfiguration()->performanceTracking;
 
 	_waitSemaphores.reserve(waitSemaphoreCount);
 	for (uint32_t i = 0; i < waitSemaphoreCount; i++) {
@@ -419,7 +415,7 @@ id<MTLCommandBuffer> MVKQueuePresentSurfaceSubmission::getMTLCommandBuffer() {
 
 void MVKQueuePresentSurfaceSubmission::stopAutoGPUCapture() {
 	MVKInstance* mvkInst = _queue->getInstance();
-	const MVKConfiguration* pMVKConfig = mvkInst->getMoltenVKConfiguration();
+	const MVKConfiguration* pMVKConfig = mvkGetMVKConfiguration();
 	if (_queue->_queueFamily->getIndex() == pMVKConfig->defaultGPUCaptureScopeQueueFamilyIndex &&
 		_queue->_index == pMVKConfig->defaultGPUCaptureScopeQueueIndex) {
 		mvkInst->stopAutoGPUCapture(MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE_FRAME);

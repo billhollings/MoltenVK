@@ -1,7 +1,7 @@
 /*
  * MTLRenderPassStencilAttachmentDescriptor+MoltenVK.m
  *
- * Copyright (c) 2020 Chip Davis for CodeWeavers
+ * Copyright (c) 2020-2021 Chip Davis for CodeWeavers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,21 @@
 
 
 #include "MTLRenderPassStencilAttachmentDescriptor+MoltenVK.h"
-#include "MVKEnvironment.h"
+
 
 @implementation MTLRenderPassStencilAttachmentDescriptor (MoltenVK)
 
 -(MTLMultisampleStencilResolveFilter) stencilResolveFilterMVK {
-
 	if ( [self respondsToSelector: @selector(stencilResolveFilter)] ) {
 		return self.stencilResolveFilter;
 	}
 	return MTLMultisampleStencilResolveFilterSample0;
-
 }
 
 -(void) setStencilResolveFilterMVK: (MTLMultisampleStencilResolveFilter) filter {
-
 	if ( [self respondsToSelector: @selector(setStencilResolveFilter:)] ) {
 		self.stencilResolveFilter = filter;
 	}
-
 }
 
 @end

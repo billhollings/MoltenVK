@@ -1,7 +1,7 @@
 /*
  * MVKDescriptorSet.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -310,14 +310,6 @@ void MVKDescriptorSet::write(const DescriptorAction* pDescriptorAction,
 	if (getInstance()->isCurrentlyAutoGPUCapturing()) { [_pool->_mtlArgumentBuffer contents]; }
 }
 
-// Create concrete implementations of the three variations of the write() function.
-template void MVKDescriptorSet::write<VkWriteDescriptorSet>(const VkWriteDescriptorSet* pDescriptorAction,
-															size_t stride, const void *pData);
-template void MVKDescriptorSet::write<VkCopyDescriptorSet>(const VkCopyDescriptorSet* pDescriptorAction,
-														   size_t stride, const void *pData);
-template void MVKDescriptorSet::write<VkDescriptorUpdateTemplateEntryKHR>(const VkDescriptorUpdateTemplateEntryKHR* pDescriptorAction,
-																		  size_t stride, const void *pData);
-
 void MVKDescriptorSet::read(const VkCopyDescriptorSet* pDescriptorCopy,
 							VkDescriptorImageInfo* pImageInfo,
 							VkDescriptorBufferInfo* pBufferInfo,
@@ -395,28 +387,11 @@ MVKDescriptorSet::MVKDescriptorSet(MVKDescriptorPool* pool) : MVKVulkanAPIDevice
 #pragma mark -
 #pragma mark MVKDescriptorTypePreallocation
 
-#ifndef MVK_CONFIG_PREALLOCATE_DESCRIPTORS
-#   define MVK_CONFIG_PREALLOCATE_DESCRIPTORS    0
-#endif
-
-// Returns whether descriptors should be preallocated in the descriptor pools
-// We do this once lazily instead of in a library constructor function to
-// ensure the NSProcessInfo environment is available when called upon.
-static inline bool mvkShouldPreallocateDescriptors() {
-	static bool _mvkShouldPreallocateDescriptors = MVK_CONFIG_PREALLOCATE_DESCRIPTORS;
-	static bool _mvkShouldPreallocateDescriptorsInitialized = false;
-	if ( !_mvkShouldPreallocateDescriptorsInitialized ) {
-		_mvkShouldPreallocateDescriptorsInitialized = true;
-		MVK_SET_FROM_ENV_OR_BUILD_BOOL(_mvkShouldPreallocateDescriptors, MVK_CONFIG_PREALLOCATE_DESCRIPTORS);
-	}
-	return _mvkShouldPreallocateDescriptors;
-}
-
 template<class DescriptorClass>
 VkResult MVKDescriptorTypePreallocation<DescriptorClass>::allocateDescriptor(MVKDescriptor** pMVKDesc) {
 
 	// If we don't preallocate, create and return an instance on the fly.
-	if ( !mvkShouldPreallocateDescriptors() ) {
+	if ( !_shouldPreallocate ) {
 		*pMVKDesc = new DescriptorClass();
 		return VK_SUCCESS;
 	}
@@ -470,7 +445,7 @@ template<typename DescriptorClass>
 void MVKDescriptorTypePreallocation<DescriptorClass>::freeDescriptor(MVKDescriptor* mvkDesc) {
 
 	// If we don't preallocate, create and return an instance on the fly.
-	if ( !mvkShouldPreallocateDescriptors() ) {
+	if ( !_shouldPreallocate ) {
 		mvkDesc->destroy();
 		return;
 	}
@@ -501,7 +476,8 @@ MVKDescriptorTypePreallocation<DescriptorClass>::MVKDescriptorTypePreallocation(
 	_supportAvailability = mvkIsAnyFlagEnabled(pCreateInfo->flags, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
 	_nextAvailableIndex = 0;
 
-	if (mvkShouldPreallocateDescriptors()) {
+	_shouldPreallocate = mvkGetMVKConfiguration()->preallocateDescriptors;
+	if (_shouldPreallocate) {
 		// There may be more than  one poolSizeCount instance for the desired VkDescriptorType.
 		// Accumulate the descriptor count for the desired VkDescriptorType, and size the collections accordingly.
 		uint32_t descriptorCount = 0;
@@ -748,7 +724,7 @@ MVKDescriptorPool::MVKDescriptorPool(MVKDevice* device, const VkDescriptorPoolCr
 	_combinedImageSamplerDescriptors(pCreateInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER),
 	_uniformTexelBufferDescriptors(pCreateInfo, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER),
 	_storageTexelBufferDescriptors(pCreateInfo, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER),
-	_inlineBlockMTLBufferAllocator(device, getMaxInlineBlockSize(device, pCreateInfo), true) {
+	_inlineBlockMTLBufferAllocator(device, getMaxInlineBlockSize(pCreateInfo), true) {
 
 	_mtlArgumentBuffer = nil;
 	_nextMTLArgumentBufferOffset = 0;
@@ -801,8 +777,8 @@ NSUInteger MVKDescriptorPool::getDescriptorByteCountForMetalArgumentBuffer(VkDes
 	}
 }
 
-NSUInteger MVKDescriptorPool::getMaxInlineBlockSize(MVKDevice* device, const VkDescriptorPoolCreateInfo* pCreateInfo) {
-	if ( !device->_pMetalFeatures->argumentBuffers || MVKInlineUniformBlockDescriptor::shouldEmbedInlineBlocksInMetalAgumentBuffer()) { return 0; }
+NSUInteger MVKDescriptorPool::getMaxInlineBlockSize(const VkDescriptorPoolCreateInfo* pCreateInfo) {
+	if ( !supportsMetalArgumentBuffers() || MVKInlineUniformBlockDescriptor::shouldEmbedInlineBlocksInMetalAgumentBuffer()) { return 0; }
 
 	NSUInteger maxInlineBlockSize = 0;
 	uint32_t poolCnt = pCreateInfo->poolSizeCount;
@@ -813,7 +789,7 @@ NSUInteger MVKDescriptorPool::getMaxInlineBlockSize(MVKDevice* device, const VkD
 			maxInlineBlockSize = std::max(iubSize, maxInlineBlockSize);
 		}
 	}
-	return std::min<NSUInteger>(maxInlineBlockSize, device->_pMetalFeatures->maxMTLBufferSize);
+	return std::min<NSUInteger>(maxInlineBlockSize, _device->_pMetalFeatures->maxMTLBufferSize);
 }
 
 // Destroy all allocated descriptor sets and preallocated descriptors

@@ -1,7 +1,7 @@
 /*
  * MVKExtensions.mm
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include "MVKFoundation.h"
 #include "MVKOSExtensions.h"
 #include "MVKEnvironment.h"
-#include "vk_mvk_moltenvk.h"
 #include <vulkan/vulkan_ios.h>
 #include <vulkan/vulkan_macos.h>
 

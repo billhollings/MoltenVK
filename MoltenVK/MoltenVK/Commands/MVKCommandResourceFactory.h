@@ -1,7 +1,7 @@
 /*
  * MVKCommandResourceFactory.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -448,6 +448,9 @@ public:
 
 	/** Returns a new MTLComputePipelineState for copying query results to a buffer. */
 	id<MTLComputePipelineState> newCmdCopyQueryPoolResultsMTLComputePipelineState(MVKVulkanAPIDeviceObject* owner);
+
+	/** Returns a new MTLComputePipelineState for accumulating occlusion query results to a buffer. */
+	id<MTLComputePipelineState> newAccumulateOcclusionQueryResultsMTLComputePipelineState(MVKVulkanAPIDeviceObject* owner);
 
 
 #pragma mark Construction

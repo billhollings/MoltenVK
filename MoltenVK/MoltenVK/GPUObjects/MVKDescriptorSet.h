@@ -1,7 +1,7 @@
 /*
  * MVKDescriptorSet.h
  *
- * Copyright (c) 2015-2020 The Brenwill Workshop Ltd. (http://www.brenwill.com)
+ * Copyright (c) 2015-2021 The Brenwill Workshop Ltd. (http://www.brenwill.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -208,6 +208,7 @@ protected:
 	MVKSmallVector<bool> _availability;
 	uint32_t _nextAvailableIndex;
 	bool _supportAvailability;
+	bool _shouldPreallocate;
 };
 
 
@@ -248,8 +249,8 @@ protected:
 	void freeDescriptorSet(MVKDescriptorSet* mvkDS, bool isPoolReset);
 	VkResult allocateDescriptor(VkDescriptorType descriptorType, MVKDescriptor** pMVKDesc);
 	void freeDescriptor(MVKDescriptor* mvkDesc);
-	static NSUInteger getDescriptorByteCountForMetalArgumentBuffer(VkDescriptorType descriptorType);
-	static NSUInteger getMaxInlineBlockSize(MVKDevice* device, const VkDescriptorPoolCreateInfo* pCreateInfo);
+	NSUInteger getDescriptorByteCountForMetalArgumentBuffer(VkDescriptorType descriptorType);
+	NSUInteger getMaxInlineBlockSize(const VkDescriptorPoolCreateInfo* pCreateInfo);
 
 	MVKSmallVector<MVKDescriptorSet> _descriptorSets;
 	MVKBitArray _descriptorSetAvailablility;
