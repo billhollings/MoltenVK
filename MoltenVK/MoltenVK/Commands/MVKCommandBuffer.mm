@@ -427,6 +427,30 @@ void MVKCommandEncoder::bindPipeline(VkPipelineBindPoint pipelineBindPoint, MVKP
     }
 }
 
+void MVKCommandEncoder::bindBuffer(const MVKMTLBufferBinding& binding, MVKShaderStage stage) {
+	if (stage == kMVKShaderStageCompute) {
+		_computeResourcesState.bindBuffer(binding);
+	} else {
+		_graphicsResourcesState.bindBuffer(stage, binding);
+	}
+}
+
+void MVKCommandEncoder::bindTexture(const MVKMTLTextureBinding& binding, MVKShaderStage stage) {
+	if (stage == kMVKShaderStageCompute) {
+		_computeResourcesState.bindTexture(binding);
+	} else {
+		_graphicsResourcesState.bindTexture(stage, binding);
+	}
+}
+
+void MVKCommandEncoder::bindSamplerState(const MVKMTLSamplerStateBinding& binding, MVKShaderStage stage) {
+	if (stage == kMVKShaderStageCompute) {
+		_computeResourcesState.bindSamplerState(binding);
+	} else {
+		_graphicsResourcesState.bindSamplerState(stage, binding);
+	}
+}
+
 void MVKCommandEncoder::signalEvent(MVKEvent* mvkEvent, bool status) {
 	endCurrentMetalEncoding();
 	mvkEvent->encodeSignal(_mtlCmdBuffer, status);
@@ -664,8 +688,8 @@ MVKCommandEncodingPool* MVKCommandEncoder::getCommandEncodingPool() {
 }
 
 // Copies the specified bytes into a temporary allocation within a pooled MTLBuffer, and returns the MTLBuffer allocation.
-const MVKMTLBufferAllocation* MVKCommandEncoder::copyToTempMTLBufferAllocation(const void* bytes, NSUInteger length) {
-    const MVKMTLBufferAllocation* mtlBuffAlloc = getTempMTLBuffer(length);
+const MVKMTLBufferAllocation* MVKCommandEncoder::copyToTempMTLBufferAllocation(const void* bytes, NSUInteger length, bool isPrivate, bool isDedicated) {
+    const MVKMTLBufferAllocation* mtlBuffAlloc = getTempMTLBuffer(length, isPrivate, isDedicated);
     void* pBuffData = mtlBuffAlloc->getContents();
     mlock(pBuffData, length);
     memcpy(pBuffData, bytes, length);

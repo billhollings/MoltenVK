@@ -51,7 +51,7 @@ public:
     MVKMTLBufferAllocationPool* getPool() const { return _pool; }
 
 	/** Returns this object back to the pool that created it. */
-    void returnToPool();
+    void returnToPool() const;
 
 	/** Constructs this instance with the specified pool as its origin. */
     MVKMTLBufferAllocation(MVKMTLBufferAllocationPool* pool,

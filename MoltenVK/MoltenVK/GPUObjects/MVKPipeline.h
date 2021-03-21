@@ -39,7 +39,7 @@ class MVKPipelineCache;
 #pragma mark MVKPipelineLayout
 
 struct MVKShaderImplicitRezBinding {
-	uint32_t stages[kMVKShaderStageMax];
+	uint32_t stages[kMVKShaderStageCount];
 };
 
 /** Represents a Vulkan pipeline layout. */
@@ -173,15 +173,16 @@ public:
 	/** Returns whether all internal Metal pipeline states are valid. */
 	bool hasValidMTLPipelineStates() { return _hasValidMTLPipelineStates; }
 
-	/** Constructs an instance for the device. layout, and parent (which may be NULL). */
+	/** Returns the MTLArgumentEncoder for a descriptor set. */
+	id<MTLArgumentEncoder> getMTLArgumentEncoder(uint32_t descSetIdx) {
+		return descSetIdx < _mtlArgumentEncoders.size() ? _mtlArgumentEncoders[descSetIdx] : nil;
+	}
+
 	MVKPipeline(MVKDevice* device, MVKPipelineCache* pipelineCache, MVKPipelineLayout* layout, MVKPipeline* parent);
 
 protected:
 	void propagateDebugName() override {}
 	void addMTLArgumentEncoders(MVKPipelineLayout* layout, SPIRVToMSLConversionConfiguration& shaderConfig);
-	id<MTLArgumentEncoder> getMTLArgumentEncoder(uint32_t descSetIdx) {
-		return descSetIdx < _mtlArgumentEncoders.size() ? _mtlArgumentEncoders[descSetIdx] : nil;
-	}
 
 	MVKPipelineCache* _pipelineCache;
 	MVKSmallVector<id<MTLArgumentEncoder>> _mtlArgumentEncoders;

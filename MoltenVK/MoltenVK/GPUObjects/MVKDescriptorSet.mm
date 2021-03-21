@@ -27,13 +27,14 @@
 // A null cmdEncoder can be passed to perform a validation pass
 void MVKDescriptorSetLayout::bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
 											   MVKDescriptorSet* descSet,
+											   uint32_t descSetIndex,
 											   MVKShaderResourceBinding& dslMTLRezIdxOffsets,
 											   MVKArrayRef<uint32_t> dynamicOffsets,
 											   uint32_t& dynamicOffsetIndex) {
 	if (!cmdEncoder) { clearConfigurationResult(); }
 	if ( !_isPushDescriptorLayout ) {
 		for (auto& dslBind : _bindings) {
-			dslBind.bind(cmdEncoder, descSet, dslMTLRezIdxOffsets, dynamicOffsets, dynamicOffsetIndex);
+			dslBind.bind(cmdEncoder, descSet, descSetIndex, dslMTLRezIdxOffsets, dynamicOffsets, dynamicOffsetIndex);
 		}
 	}
 }
@@ -303,6 +304,10 @@ void MVKDescriptorSet::read(const VkCopyDescriptorSet* pDescriptorCopy,
 			}
         }
     }
+}
+
+const MVKMTLBufferAllocation* MVKDescriptorSet::acquireMTLBufferRegion(NSUInteger length) {
+	return _pool->_inlineBlockMTLBufferAllocator.acquireMTLBufferRegion(length);
 }
 
 VkResult MVKDescriptorSet::allocate(MVKDescriptorSetLayout* layout,
@@ -655,6 +660,7 @@ MVKDescriptorPool::MVKDescriptorPool(MVKDevice* device, const VkDescriptorPoolCr
 	_combinedImageSamplerDescriptors(getPoolSize(pCreateInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, poolDescriptors)),
 	_uniformTexelBufferDescriptors(getPoolSize(pCreateInfo, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, poolDescriptors)),
 	_storageTexelBufferDescriptors(getPoolSize(pCreateInfo, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, poolDescriptors)),
+	_inlineBlockMTLBufferAllocator(device, getMaxInlineBlockSize(pCreateInfo), true),
 	_hasPooledDescriptors(poolDescriptors) {
 		initMetalArgumentBuffer(pCreateInfo);
 	}
@@ -710,6 +716,19 @@ NSUInteger MVKDescriptorPool::getDescriptorByteCountForMetalArgumentBuffer(VkDes
 		default:
 			return 0;
 	}
+}
+
+NSUInteger MVKDescriptorPool::getMaxInlineBlockSize(const VkDescriptorPoolCreateInfo* pCreateInfo) {
+	NSUInteger maxInlineBlockSize = 0;
+	uint32_t poolCnt = pCreateInfo->poolSizeCount;
+	for (uint32_t poolIdx = 0; poolIdx < poolCnt; poolIdx++) {
+		auto& poolSize = pCreateInfo->pPoolSizes[poolIdx];
+		if (poolSize.type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT) {
+			NSUInteger iubSize = getDescriptorByteCountForMetalArgumentBuffer(poolSize.type) * poolSize.descriptorCount;
+			maxInlineBlockSize = std::max(iubSize, maxInlineBlockSize);
+		}
+	}
+	return std::min<NSUInteger>(maxInlineBlockSize, _device->_pMetalFeatures->maxMTLBufferSize);
 }
 
 MVKDescriptorPool::~MVKDescriptorPool() {
@@ -819,27 +838,4 @@ void mvkUpdateDescriptorSetWithTemplate(VkDescriptorSet descriptorSet,
 		const void* pCurData = (const char*)pData + pEntry->offset;
 		dstSet->write(pEntry, pEntry->stride, pCurData);
 	}
-}
-
-void mvkPopulateShaderConverterContext(mvk::SPIRVToMSLConversionConfiguration& context,
-									   MVKShaderStageResourceBinding& ssRB,
-									   spv::ExecutionModel stage,
-									   uint32_t descriptorSetIndex,
-									   uint32_t bindingIndex,
-									   uint32_t count,
-									   MVKSampler* immutableSampler) {
-	mvk::MSLResourceBinding rb;
-
-	auto& rbb = rb.resourceBinding;
-	rbb.stage = stage;
-	rbb.desc_set = descriptorSetIndex;
-	rbb.binding = bindingIndex;
-	rbb.count = count;
-	rbb.msl_buffer = ssRB.bufferIndex;
-	rbb.msl_texture = ssRB.textureIndex;
-	rbb.msl_sampler = ssRB.samplerIndex;
-
-	if (immutableSampler) { immutableSampler->getConstexprSampler(rb); }
-
-	context.resourceBindings.push_back(rb);
 }

@@ -33,14 +33,20 @@ typedef struct {
     union { id<MTLTexture> mtlTexture = nil; id<MTLTexture> mtlResource; }; // aliases
     uint32_t swizzle = 0;
 	uint16_t index = 0;
+	uint8_t descriptorSetIndex = 0;
+	uint8_t mtlUsage = 0;		// As MTLResourceUsage
+	uint8_t mtlStages = 0;		// As MTLRenderStages
     bool isDirty = true;
+	bool useArgumentBuffer = false;
 } MVKMTLTextureBinding;
 
 /** Describes a MTLSamplerState resource binding. */
 typedef struct {
     union { id<MTLSamplerState> mtlSamplerState = nil; id<MTLSamplerState> mtlResource; }; // aliases
     uint16_t index = 0;
+	uint8_t descriptorSetIndex = 0;
     bool isDirty = true;
+	bool useArgumentBuffer = false;
 } MVKMTLSamplerStateBinding;
 
 /** Describes a MTLBuffer resource binding. */
@@ -49,8 +55,12 @@ typedef struct {
     VkDeviceSize offset = 0;
     uint32_t size = 0;
 	uint16_t index = 0;
+	uint8_t descriptorSetIndex = 0;
+	uint8_t mtlUsage = 0;		// As MTLResourceUsage
+	uint8_t mtlStages = 0;		// As MTLRenderStages
     bool isDirty = true;
     bool isInline = false;
+	bool useArgumentBuffer = false;
 } MVKMTLBufferBinding;
 
 /** Describes a MTLBuffer resource binding as used for an index buffer. */

@@ -301,6 +301,15 @@ public:
     /** Binds a pipeline to a bind point. */
     void bindPipeline(VkPipelineBindPoint pipelineBindPoint, MVKPipeline* pipeline);
 
+	/** Bind a buffer to either the graphic or compute encoder, based on the stage. */
+	void bindBuffer(const MVKMTLBufferBinding& binding, MVKShaderStage stage);
+
+	/** Bind a texture to either the graphic or compute encoder, based on the stage. */
+	void bindTexture(const MVKMTLTextureBinding& binding, MVKShaderStage stage);
+
+	/** Bind a sampler to either the graphic or compute encoder, based on the stage. */
+	void bindSamplerState(const MVKMTLSamplerStateBinding& binding, MVKShaderStage stage);
+
 	/** Encodes an operation to signal an event to a status. */
 	void signalEvent(MVKEvent* mvkEvent, bool status);
 
@@ -371,6 +380,9 @@ public:
 
     /** Get a temporary MTLBuffer that will be returned to a pool after the command buffer is finished. */
     const MVKMTLBufferAllocation* getTempMTLBuffer(NSUInteger length, bool isPrivate = false, bool isDedicated = false);
+
+	/** Copy the bytes to a temporary MTLBuffer that will be returned to a pool after the command buffer is finished. */
+	const MVKMTLBufferAllocation* copyToTempMTLBufferAllocation(const void* bytes, NSUInteger length, bool isPrivate = false, bool isDedicated = false);
 
     /** Returns the command encoding pool. */
     MVKCommandEncodingPool* getCommandEncodingPool();
@@ -470,7 +482,6 @@ protected:
     void finishQueries();
 	void setSubpass(MVKCommand* passCmd, VkSubpassContents subpassContents, uint32_t subpassIndex);
 	void clearRenderArea();
-    const MVKMTLBufferAllocation* copyToTempMTLBufferAllocation(const void* bytes, NSUInteger length);
     NSString* getMTLRenderCommandEncoderName();
 
 	VkSubpassContents _subpassContents;

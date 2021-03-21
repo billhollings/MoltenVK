@@ -21,9 +21,7 @@
 #include "MVKDescriptor.h"
 #include "MVKSmallVector.h"
 #include "MVKBitArray.h"
-#include <unordered_set>
 #include <unordered_map>
-#include <vector>
 
 class MVKDescriptorPool;
 class MVKPipelineLayout;
@@ -47,6 +45,7 @@ public:
 	/** Encodes this descriptor set layout and the specified descriptor set on the specified command encoder. */
 	void bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
 						   MVKDescriptorSet* descSet,
+						   uint32_t descSetIndex,
 						   MVKShaderResourceBinding& dslMTLRezIdxOffsets,
 						   MVKArrayRef<uint32_t> dynamicOffsets,
 						   uint32_t& dynamicOffsetIndex);
@@ -130,6 +129,9 @@ public:
 			  VkDescriptorBufferInfo* pBufferInfo,
 			  VkBufferView* pTexelBufferView,
 			  VkWriteDescriptorSetInlineUniformBlockEXT* pInlineUniformBlock);
+
+	/** Returns an MTLBuffer region allocation. */
+	const MVKMTLBufferAllocation* acquireMTLBufferRegion(NSUInteger length);
 
 	MVKDescriptorSet(MVKDescriptorPool* pool);
 
@@ -218,11 +220,13 @@ protected:
 	void freeDescriptor(MVKDescriptor* mvkDesc);
 	void initMetalArgumentBuffer(const VkDescriptorPoolCreateInfo* pCreateInfo);
 	NSUInteger getDescriptorByteCountForMetalArgumentBuffer(VkDescriptorType descriptorType);
+	NSUInteger getMaxInlineBlockSize(const VkDescriptorPoolCreateInfo* pCreateInfo);
 
 	MVKSmallVector<MVKDescriptorSet> _descriptorSets;
 	MVKBitArray _descriptorSetAvailablility;
 	id<MTLBuffer> _metalArgumentBuffer;
 	NSUInteger _nextMetalArgumentBufferOffset;
+	MVKMTLBufferAllocator _inlineBlockMTLBufferAllocator;
 
 	MVKDescriptorTypePool<MVKUniformBufferDescriptor> _uniformBufferDescriptors;
 	MVKDescriptorTypePool<MVKStorageBufferDescriptor> _storageBufferDescriptors;
@@ -289,15 +293,3 @@ void mvkUpdateDescriptorSets(uint32_t writeCount,
 void mvkUpdateDescriptorSetWithTemplate(VkDescriptorSet descriptorSet,
 										VkDescriptorUpdateTemplateKHR updateTemplate,
 										const void* pData);
-
-/**
- * If the shader stage binding has a binding defined for the specified stage, populates
- * the context at the descriptor set binding from the shader stage resource binding.
- */
-void mvkPopulateShaderConverterContext(mvk::SPIRVToMSLConversionConfiguration& context,
-									   MVKShaderStageResourceBinding& ssRB,
-									   spv::ExecutionModel stage,
-									   uint32_t descriptorSetIndex,
-									   uint32_t bindingIndex,
-									   uint32_t count,
-									   MVKSampler* immutableSampler);
